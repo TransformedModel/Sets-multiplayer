@@ -1,0 +1,13 @@
+# Render Blueprint: Web Service serves Vite build + WebSocket on $PORT
+# Dashboard: New → Blueprint → connect repo, or use https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: online-set-game
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production

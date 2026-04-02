@@ -1,0 +1,393 @@
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { Card, ClaimedSetEntry, RoomState } from '../ws/useWebSocketGame'
+import { cardImageFor, cardDescription } from '../cards/imageMap'
+import { GameOverOverlay } from '../components/GameOverOverlay'
+import { countSetsOnBoard, enumerateSetsOnBoard } from '../set/countSetsOnBoard'
+
+type Props = {
+  game: {
+    room: RoomState | null
+    playerId: string | null
+    claimSet: (cardIds: string[]) => void
+    lastSetResult: string | null
+    clearLastSetResult: () => void
+    reshuffleBoard: () => void
+    error: string | null
+    clearError: () => void
+    lastReshuffleError: string | null
+    clearLastReshuffleError: () => void
+  }
+}
+
+type CelebrationState = {
+  nickname: string
+  cards: Card[]
+}
+
+const CLAIM_REPLACE_PHASE_MS = 250
+
+/** Two-step fade out old cards + fade in replacements after a 3-card claim. */
+type ClaimReplaceTransition = {
+  slots: number[]
+  prevCards: Card[]
+  nextBoard: (Card | null)[]
+  phase: 'out' | 'in'
+}
+
+function MiniSetThumbnails({ cards }: { cards: Card[] }) {
+  return (
+    <div className="captured-mini-set">
+      {cards.map((c) => (
+        <img
+          key={c.id}
+          className="captured-mini-card"
+          src={cardImageFor(c)}
+          alt={cardDescription(c)}
+        />
+      ))}
+    </div>
+  )
+}
+
+export function GameView({ game }: Props) {
+  const room = game.room
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [celebration, setCelebration] = useState<CelebrationState | null>(null)
+  const prevClaimedLenRef = useRef<number | null>(null)
+  const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Filled inside setState when a triple is complete; claim runs once in layout effect (avoids Strict Mode double-invoking updaters and sending claimSet twice). */
+  const pendingClaimRef = useRef<string[] | null>(null)
+  const prevBoardRef = useRef<(Card | null)[] | null>(null)
+  const claimAnimTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const [claimReplace, setClaimReplace] = useState<ClaimReplaceTransition | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (celebrationTimerRef.current) {
+        clearTimeout(celebrationTimerRef.current)
+      }
+      claimAnimTimersRef.current.forEach((id) => clearTimeout(id))
+      claimAnimTimersRef.current = []
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!room) return
+    const sets: ClaimedSetEntry[] = room.claimedSets ?? []
+    const len = sets.length
+    if (prevClaimedLenRef.current === null) {
+      prevClaimedLenRef.current = len
+      return
+    }
+    if (len > prevClaimedLenRef.current) {
+      const latest = sets[len - 1]
+      const claimer = room.players.find((pl) => pl.playerId === latest.by)
+      if (celebrationTimerRef.current) {
+        clearTimeout(celebrationTimerRef.current)
+      }
+      setCelebration({
+        nickname: claimer?.nickname ?? 'Someone',
+        cards: latest.cards,
+      })
+      celebrationTimerRef.current = setTimeout(() => {
+        setCelebration(null)
+        celebrationTimerRef.current = null
+      }, 2000)
+    }
+    prevClaimedLenRef.current = len
+  }, [room])
+
+  useLayoutEffect(() => {
+    const ids = pendingClaimRef.current
+    if (!ids) return
+    pendingClaimRef.current = null
+    game.claimSet(ids)
+  }, [selectedIds, game.claimSet])
+
+  const boardIdsKey = useMemo(
+    () => (room?.board ?? []).map((c) => c?.id ?? '').join('|'),
+    [room?.board],
+  )
+
+  useEffect(() => {
+    setSelectedIds([])
+  }, [boardIdsKey])
+
+  useEffect(() => {
+    if (!room) return
+
+    const clearClaimTimers = () => {
+      claimAnimTimersRef.current.forEach((id) => clearTimeout(id))
+      claimAnimTimersRef.current = []
+    }
+
+    const next = room.board
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (prevBoardRef.current === null) {
+      clearClaimTimers()
+      setClaimReplace(null)
+      prevBoardRef.current = next.map((c) => c)
+      return
+    }
+
+    const prev = prevBoardRef.current
+
+    if (prev.length !== next.length) {
+      clearClaimTimers()
+      setClaimReplace(null)
+      prevBoardRef.current = next.map((c) => c)
+      return
+    }
+
+    const changed: number[] = []
+    for (let i = 0; i < next.length; i++) {
+      if ((prev[i]?.id ?? '') !== (next[i]?.id ?? '')) changed.push(i)
+    }
+
+    const isClaimSizedReplace =
+      changed.length === 3 && changed.every((i) => prev[i] && next[i])
+
+    if (reduceMotion || !isClaimSizedReplace) {
+      clearClaimTimers()
+      setClaimReplace(null)
+      prevBoardRef.current = next.map((c) => c)
+      return
+    }
+
+    clearClaimTimers()
+    setClaimReplace({
+      slots: changed,
+      prevCards: changed.map((i) => prev[i]!),
+      nextBoard: next.map((c) => c),
+      phase: 'out',
+    })
+
+    const t1 = window.setTimeout(() => {
+      setClaimReplace((cur) => (cur && cur.phase === 'out' ? { ...cur, phase: 'in' } : cur))
+    }, CLAIM_REPLACE_PHASE_MS)
+
+    const t2 = window.setTimeout(() => {
+      setClaimReplace(null)
+      prevBoardRef.current = next.map((c) => c)
+    }, CLAIM_REPLACE_PHASE_MS * 2)
+
+    claimAnimTimersRef.current = [t1, t2]
+
+    return () => clearClaimTimers()
+  }, [boardIdsKey, room])
+
+  const setsOnBoard = useMemo(
+    () => (room ? countSetsOnBoard(room.board) : 0),
+    [room?.board],
+  )
+
+  const finishedScoreSig = useMemo(
+    () => (room ? room.players.map((p) => p.score).join('|') : ''),
+    [room?.players],
+  )
+
+  const gameOverKey = useMemo(() => {
+    if (!room || room.status !== 'finished') return ''
+    return `${room.roomCode}-${room.claimedSets.length}-${finishedScoreSig}`
+  }, [room?.status, room?.roomCode, room?.claimedSets?.length, finishedScoreSig])
+
+  if (!room) {
+    return (
+      <div className="app-shell">
+        <div className="card">
+          <p>Loading game…</p>
+        </div>
+      </div>
+    )
+  }
+
+  const me = room.players.find((p) => p.playerId === game.playerId)
+  const claimedSets = room.claimedSets ?? []
+
+  const getSlotPresentation = (
+    slotIndex: number,
+  ): { card: Card; imageClass: string } | null => {
+    const next = room.board[slotIndex]
+    if (!next) return null
+
+    if (!claimReplace) {
+      return { card: next, imageClass: '' }
+    }
+
+    const { slots, prevCards, nextBoard, phase } = claimReplace
+    const j = slots.indexOf(slotIndex)
+    if (j === -1) {
+      return { card: nextBoard[slotIndex]!, imageClass: '' }
+    }
+    if (phase === 'out') {
+      return { card: prevCards[j], imageClass: 'card-replace-leave' }
+    }
+    return { card: nextBoard[slotIndex]!, imageClass: 'card-replace-enter' }
+  }
+
+  const logSetsOnBoardForQA = () => {
+    const board = room.board
+    const slotLine = board.map((c, i) => (c ? `${i}:${c.id}` : `${i}:(empty)`)).join(', ')
+    console.log('[QA] Board slots (grid index → card id):', slotLine)
+    const found = enumerateSetsOnBoard(board)
+    console.log('[QA] Sets on board count:', found.length)
+    found.forEach((entry, index) => {
+      const { indices, cards: triple } = entry
+      const rows = triple.map((c, slot) => ({
+        boardIndex: indices[slot],
+        id: c.id,
+        shape: c.shape,
+        color: c.color,
+        fill: c.fill,
+        count: c.count,
+        description: cardDescription(c),
+      }))
+      console.log(`[QA] Set ${index + 1}/${found.length} (board indices ${indices.join(',')})`, rows)
+    })
+    if (found.length === 0) {
+      console.log('[QA] No valid sets on this board.')
+    }
+  }
+
+  const toggleCard = (card: Card) => {
+    setSelectedIds((current) => {
+      const exists = current.includes(card.id)
+      let next = exists ? current.filter((id) => id !== card.id) : [...current, card.id]
+      if (next.length === 3) {
+        pendingClaimRef.current = next
+        return []
+      }
+      return next
+    })
+  }
+
+  return (
+    <div className="game-layout">
+      {room.status === 'finished' && gameOverKey && (
+        <GameOverOverlay players={room.players} roomCode={room.roomCode} gameKey={gameOverKey} />
+      )}
+      <button
+        type="button"
+        className="game-top-bar"
+        title="Click to log each set’s cards in the console (QA)"
+        onClick={logSetsOnBoardForQA}
+      >
+        <span className="game-top-bar-label">Sets on board</span>
+        <span className="game-top-bar-value">{setsOnBoard}</span>
+      </button>
+      {celebration && (
+        <div className="celebration-overlay" role="status" aria-live="polite">
+          <div className="celebration-card">
+            <p className="celebration-headline">
+              <span className="celebration-kicker">Set!</span>{' '}
+              <strong>{celebration.nickname}</strong> took a set
+            </p>
+            <div className="celebration-preview">
+              {celebration.cards.map((c) => (
+                <img
+                  key={c.id}
+                  className="celebration-card-img"
+                  src={cardImageFor(c)}
+                  alt={cardDescription(c)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="board">
+        {room.board.map((_, slotIndex) => {
+          const pres = getSlotPresentation(slotIndex)
+          if (!pres) return null
+          const { card, imageClass } = pres
+          const selected = selectedIds.includes(card.id)
+          const boardBusy = claimReplace !== null
+          const playable = room.status === 'in-progress' && !boardBusy
+          const imgKey = claimReplace
+            ? `${claimReplace.phase}-${slotIndex}-${card.id}`
+            : `${slotIndex}-${card.id}`
+          return (
+            <button
+              key={slotIndex}
+              type="button"
+              className={`card-tile ${selected ? 'selected' : ''} ${!playable ? 'disabled' : ''}`}
+              disabled={!playable}
+              data-card-count={Number(card.count)}
+              onClick={() => playable && toggleCard(card)}
+            >
+              <img
+                key={imgKey}
+                className={`card-image ${imageClass}`.trim()}
+                src={cardImageFor(card)}
+                alt={cardDescription(card)}
+              />
+            </button>
+          )
+        })}
+      </div>
+      <aside className="sidebar">
+        <h2>Room {room.roomCode}</h2>
+        <p>Status: {room.status}</p>
+        <p>Deck remaining: {room.deckCount}</p>
+        {me?.isHost && room.status === 'in-progress' && (
+          <button
+            type="button"
+            className="reshuffle-deck"
+            title="Put all cards on the table back with the deck, shuffle, and deal up to 12 on the board"
+            onClick={() => game.reshuffleBoard()}
+          >
+            Reshuffle deck
+          </button>
+        )}
+        {game.lastReshuffleError && (
+          <div className="game-inline-error" role="alert">
+            <p>{game.lastReshuffleError}</p>
+            <button type="button" className="game-inline-error-dismiss" onClick={game.clearLastReshuffleError}>
+              Dismiss
+            </button>
+          </div>
+        )}
+        {game.error && (
+          <div className="game-inline-error" role="alert">
+            <p>{game.error}</p>
+            <button type="button" className="game-inline-error-dismiss" onClick={game.clearError}>
+              Dismiss
+            </button>
+          </div>
+        )}
+        <h3>Players</h3>
+        <ul className="score-list">
+          {room.players.map((p) => {
+            const setsForPlayer = claimedSets.filter((e) => e.by === p.playerId)
+            return (
+              <li key={p.playerId} className={p.playerId === me?.playerId ? 'me' : ''}>
+                <div className="player-line-top">
+                  <span className="player-nickname">{p.nickname}</span>
+                  <span className="player-score">{p.score}</span>
+                </div>
+                {setsForPlayer.length > 0 && (
+                  <div className="player-captured-sets">
+                    {setsForPlayer.map((entry, idx) => (
+                      <MiniSetThumbnails
+                        key={`${entry.at}-${entry.by}-${idx}`}
+                        cards={entry.cards}
+                      />
+                    ))}
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+        {game.lastSetResult && (
+          <div className="toast toast-error" onAnimationEnd={game.clearLastSetResult}>
+            {game.lastSetResult}
+          </div>
+        )}
+      </aside>
+    </div>
+  )
+}
