@@ -9,8 +9,69 @@ const { RoomManager } = require("./src/roomManager");
 
 const PORT = process.env.PORT || 4000;
 
+function resolveClientDist() {
+  const candidates = [
+    path.join(__dirname, "..", "client", "dist"),
+    path.join(process.cwd(), "client", "dist"),
+  ];
+  for (const dir of candidates) {
+    try {
+      if (fs.existsSync(path.join(dir, "index.html"))) return dir;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
 const app = express();
 app.use(cors());
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+const clientDist = resolveClientDist();
+if (clientDist) {
+  const assetsDir = path.join(clientDist, "assets");
+  if (fs.existsSync(assetsDir)) {
+    app.use(
+      "/assets",
+      express.static(assetsDir, {
+        maxAge: "1y",
+        immutable: true,
+        setHeaders(res, filePath) {
+          if (filePath.endsWith(".css")) {
+            res.setHeader("Content-Type", "text/css; charset=utf-8");
+          } else if (filePath.endsWith(".js")) {
+            res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+          }
+        },
+      }),
+    );
+  }
+  app.use(
+    express.static(clientDist, {
+      index: ["index.html"],
+    }),
+  );
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (path.extname(req.path)) {
+      res.status(404).end();
+      return;
+    }
+    res.sendFile(path.join(clientDist, "index.html"), (err) => {
+      if (err) next(err);
+    });
+  });
+  console.log(`Static: client dist → ${clientDist}`);
+} else {
+  console.warn(
+    "client/dist not found (checked __dirname-relative and cwd-relative). Run npm run build before start.",
+  );
+}
+
 app.use(express.json());
 
 const server = http.createServer(app);
@@ -124,22 +185,6 @@ wss.on("connection", (ws) => {
     }
   });
 });
-
-app.get("/health", (_req, res) => {
-  res.json({ ok: true });
-});
-
-const clientDist = path.join(__dirname, "..", "client", "dist");
-if (fs.existsSync(clientDist)) {
-  app.use(express.static(clientDist, { fallthrough: true }));
-  // Express 5: avoid app.get('*', …) (path-to-regexp); catch-all after static
-  app.use((req, res, next) => {
-    if (req.method !== "GET") return next();
-    res.sendFile(path.join(clientDist, "index.html"), (err) => {
-      if (err) next(err);
-    });
-  });
-}
 
 const HOST = process.env.HOST || "0.0.0.0";
 server.listen(PORT, HOST, () => {
