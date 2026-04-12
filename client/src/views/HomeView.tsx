@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { GameTutorialModal } from '../components/GameTutorialModal'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { LobbyView } from './LobbyView'
 import { GameView } from './GameView'
 import { useWebSocketGame } from '../ws/useWebSocketGame'
@@ -7,6 +9,7 @@ type View = 'home' | 'lobby' | 'game'
 
 export function HomeView() {
   const [view, setView] = useState<View>('home')
+  const [tutorialOpen, setTutorialOpen] = useState(false)
   const [nickname, setNickname] = useState('')
   const [roomCodeInput, setRoomCodeInput] = useState('')
 
@@ -34,7 +37,17 @@ export function HomeView() {
   }
 
   if (view === 'lobby') {
-    return <LobbyView game={game} onStartGame={() => setView('game')} />
+    return (
+      <>
+        <ThemeToggle />
+        <GameTutorialModal open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+        <LobbyView
+          game={game}
+          onStartGame={() => setView('game')}
+          onOpenHowToPlay={() => setTutorialOpen(true)}
+        />
+      </>
+    )
   }
 
   if (view === 'game') {
@@ -42,9 +55,23 @@ export function HomeView() {
   }
 
   return (
-    <div className="app-shell">
+    <>
+      <ThemeToggle />
+      <GameTutorialModal open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+      <div className="app-shell">
       <div className="card">
-        <h1 className="title">Online Set</h1>
+        <div className="home-card-header">
+          <h1 className="title">Online Set</h1>
+          <button
+            type="button"
+            className="home-how-to-play"
+            aria-haspopup="dialog"
+            aria-expanded={tutorialOpen}
+            onClick={() => setTutorialOpen(true)}
+          >
+            How to play
+          </button>
+        </div>
         <p className="subtitle">Play Set with friends in your browser.</p>
         <div className="field-group">
           <label>Nickname</label>
@@ -71,6 +98,7 @@ export function HomeView() {
         {game.error && <div className="error">{game.error}</div>}
       </div>
     </div>
+    </>
   )
 }
 

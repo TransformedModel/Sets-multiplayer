@@ -7,15 +7,22 @@ type Props = {
     startGame: () => void
   }
   onStartGame: () => void
+  onOpenHowToPlay: () => void
 }
 
-export function LobbyView({ game, onStartGame }: Props) {
+export function LobbyView({ game, onStartGame, onOpenHowToPlay }: Props) {
   const room = game.room
   if (!room) {
     return (
       <div className="app-shell">
         <div className="card">
-          <p>Connecting to room...</p>
+          <div className="home-card-header">
+            <h1 className="title">Lobby</h1>
+            <button type="button" className="home-how-to-play" aria-haspopup="dialog" onClick={onOpenHowToPlay}>
+              How to play
+            </button>
+          </div>
+          <p className="subtitle">Connecting to room…</p>
         </div>
       </div>
     )
@@ -33,7 +40,17 @@ export function LobbyView({ game, onStartGame }: Props) {
   return (
     <div className="app-shell">
       <div className="card">
-        <h1 className="title">Lobby</h1>
+        <div className="home-card-header">
+          <h1 className="title">Lobby</h1>
+          <button
+            type="button"
+            className="home-how-to-play"
+            aria-haspopup="dialog"
+            onClick={onOpenHowToPlay}
+          >
+            How to play
+          </button>
+        </div>
         <p className="subtitle">
           Room code: <strong>{room.roomCode}</strong>
         </p>

@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Card, ClaimedSetEntry, RoomState } from '../ws/useWebSocketGame'
 import { cardImageFor, cardDescription } from '../cards/imageMap'
 import { GameOverOverlay } from '../components/GameOverOverlay'
+import { GameTutorialModal } from '../components/GameTutorialModal'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { countSetsOnBoard, enumerateSetsOnBoard } from '../set/countSetsOnBoard'
 
 type Props = {
@@ -60,6 +62,7 @@ export function GameView({ game }: Props) {
   const prevBoardRef = useRef<(Card | null)[] | null>(null)
   const claimAnimTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const [claimReplace, setClaimReplace] = useState<ClaimReplaceTransition | null>(null)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -266,18 +269,31 @@ export function GameView({ game }: Props) {
 
   return (
     <div className="game-layout">
+      <GameTutorialModal open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
       {room.status === 'finished' && gameOverKey && (
         <GameOverOverlay players={room.players} roomCode={room.roomCode} gameKey={gameOverKey} />
       )}
-      <button
-        type="button"
-        className="game-top-bar"
-        title="Click to log each set’s cards in the console (QA)"
-        onClick={logSetsOnBoardForQA}
-      >
-        <span className="game-top-bar-label">Sets on board</span>
-        <span className="game-top-bar-value">{setsOnBoard}</span>
-      </button>
+      <div className="game-top-row">
+        <button
+          type="button"
+          className="game-top-bar game-top-bar--sets"
+          title="Click to log each set’s cards in the console (QA)"
+          onClick={logSetsOnBoardForQA}
+        >
+          <span className="game-top-bar-label">Sets on board</span>
+          <span className="game-top-bar-value">{setsOnBoard}</span>
+        </button>
+        <ThemeToggle />
+        <button
+          type="button"
+          className="game-top-bar game-top-bar--tutorial"
+          aria-haspopup="dialog"
+          aria-expanded={tutorialOpen}
+          onClick={() => setTutorialOpen(true)}
+        >
+          How to play
+        </button>
+      </div>
       {celebration && (
         <div className="celebration-overlay" role="status" aria-live="polite">
           <div className="celebration-card">
@@ -298,7 +314,8 @@ export function GameView({ game }: Props) {
           </div>
         </div>
       )}
-      <div className="board">
+      <div className="board-area">
+        <div className="board">
         {room.board.map((_, slotIndex) => {
           const pres = getSlotPresentation(slotIndex)
           if (!pres) return null
@@ -327,6 +344,7 @@ export function GameView({ game }: Props) {
             </button>
           )
         })}
+        </div>
       </div>
       <aside className="sidebar">
         <h2>Room {room.roomCode}</h2>
