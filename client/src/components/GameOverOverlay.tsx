@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { formatRunDuration } from '../solo/soloLeaderboard'
 import type { Player } from '../ws/useWebSocketGame'
 
 type Props = {
@@ -6,6 +7,8 @@ type Props = {
   roomCode: string
   /** Stable when game ends so confetti layout doesn’t reshuffle on every render. */
   gameKey: string
+  /** Shown only for single-player finished games (solo run stats). */
+  soloRunSummary?: { durationMs: number; reshuffleCount: number } | null
 }
 
 type RankedPlayer = Player & { rank: number; isWinner: boolean }
@@ -50,7 +53,7 @@ function createConfettiSpecs(count: number, seedStr: string) {
   })
 }
 
-export function GameOverOverlay({ players, roomCode, gameKey }: Props) {
+export function GameOverOverlay({ players, roomCode, gameKey, soloRunSummary }: Props) {
   const ranked = useMemo(() => rankPlayers(players), [players])
   const specs = useMemo(() => createConfettiSpecs(80, gameKey), [gameKey])
   const winners = ranked.filter((p) => p.isWinner)
@@ -86,6 +89,14 @@ export function GameOverOverlay({ players, roomCode, gameKey }: Props) {
               ? 'Tie for first place!'
               : 'No sets claimed — well played!'}
         </p>
+        {soloRunSummary && (
+          <p className="game-over-solo-run" role="status">
+            Solo run: <strong>{formatRunDuration(soloRunSummary.durationMs)}</strong>
+            {' · '}
+            {soloRunSummary.reshuffleCount} reshuffle{soloRunSummary.reshuffleCount === 1 ? '' : 's'} — saved on this device’s
+            leaderboard (home screen).
+          </p>
+        )}
         <h3 className="leaderboard-title">Final rankings</h3>
         <ol className="leaderboard-list">
           {ranked.map((p) => (

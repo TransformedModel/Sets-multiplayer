@@ -172,6 +172,7 @@ wss.on("connection", (ws) => {
         });
         return;
       }
+      send(ws, "reshuffleResult", { ok: true });
       roomManager.broadcastRoom(roomCode);
     }
   });

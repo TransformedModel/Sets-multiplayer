@@ -41,6 +41,9 @@ class RoomManager {
       board: [],
       status: "waiting",
       claimedSets: [],
+      reshuffleCount: 0,
+      gameStartedAt: null,
+      gameEndedAt: null,
     };
 
     this.rooms.set(roomCode, room);
@@ -84,6 +87,9 @@ class RoomManager {
     room.deck = deck;
     room.board = board;
     room.status = "in-progress";
+    room.reshuffleCount = 0;
+    room.gameStartedAt = Date.now();
+    room.gameEndedAt = null;
     return { ok: true };
   }
 
@@ -139,6 +145,7 @@ class RoomManager {
     // End when no cards left to deal and no valid set remains on the board.
     if (room.deck.length === 0 && !hasAnySet(room.board)) {
       room.status = "finished";
+      room.gameEndedAt = Date.now();
     }
 
     return { ok: true };
@@ -161,8 +168,10 @@ class RoomManager {
     const onBoard = Math.min(12, shuffled.length);
     room.board = shuffled.slice(0, onBoard);
     room.deck = shuffled.slice(onBoard);
+    room.reshuffleCount = (room.reshuffleCount || 0) + 1;
     if (room.deck.length === 0 && !hasAnySet(room.board)) {
       room.status = "finished";
+      room.gameEndedAt = Date.now();
     }
     return { ok: true };
   }
@@ -207,6 +216,9 @@ class RoomManager {
           count: c.count,
         })),
       })),
+      reshuffleCount: room.reshuffleCount ?? 0,
+      gameStartedAt: room.gameStartedAt ?? null,
+      gameEndedAt: room.gameEndedAt ?? null,
     };
   }
 

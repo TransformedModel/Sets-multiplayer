@@ -62,7 +62,10 @@ export function LobbyView({ game, onStartGame, onOpenHowToPlay }: Props) {
             </div>
           ))}
         </div>
-        <p className="hint">Share this code with friends to join. Max 6 players.</p>
+        <p className="hint">
+          Share this code with friends to join (max 6). Playing alone? Start when you are ready — solo runs are timed for the home
+          leaderboard.
+        </p>
         {isHost ? (
           <button onClick={handleStart} className="primary">
             Start Game

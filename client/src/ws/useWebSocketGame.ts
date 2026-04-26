@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
  * Dev: Vite on :5173 → game server on :4000.
- * Prod (e.g. Render): same host as the page, wss/ws and port from location (no :4000).
+ * Prod (same origin): same host as the page, wss/ws and port from location (no :4000).
  * Override anytime with VITE_WS_URL.
  */
 function getWebSocketUrl(): string {
@@ -46,6 +46,9 @@ export type RoomState = {
   board: Card[]
   deckCount: number
   claimedSets: ClaimedSetEntry[]
+  reshuffleCount: number
+  gameStartedAt: number | null
+  gameEndedAt: number | null
 }
 
 type GameMessage =
@@ -60,6 +63,9 @@ function normalizeRoom(r: RoomState): RoomState {
   return {
     ...r,
     claimedSets: r.claimedSets ?? [],
+    reshuffleCount: r.reshuffleCount ?? 0,
+    gameStartedAt: r.gameStartedAt ?? null,
+    gameEndedAt: r.gameEndedAt ?? null,
   }
 }
 

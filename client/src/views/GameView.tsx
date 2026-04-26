@@ -5,6 +5,7 @@ import { GameOverOverlay } from '../components/GameOverOverlay'
 import { GameTutorialModal } from '../components/GameTutorialModal'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { countSetsOnBoard, enumerateSetsOnBoard } from '../set/countSetsOnBoard'
+import { addSoloRun, hasSoloRunBeenRecorded, markSoloRunRecorded } from '../solo/soloLeaderboard'
 
 type Props = {
   game: {
@@ -63,6 +64,7 @@ export function GameView({ game }: Props) {
   const claimAnimTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const [claimReplace, setClaimReplace] = useState<ClaimReplaceTransition | null>(null)
   const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [reshuffleConfirmOpen, setReshuffleConfirmOpen] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -197,6 +199,25 @@ export function GameView({ game }: Props) {
     return `${room.roomCode}-${room.claimedSets.length}-${finishedScoreSig}`
   }, [room?.status, room?.roomCode, room?.claimedSets?.length, finishedScoreSig])
 
+  useEffect(() => {
+    if (!room || room.status !== 'finished' || room.players.length !== 1) return
+    const started = room.gameStartedAt
+    const ended = room.gameEndedAt
+    if (typeof started !== 'number' || typeof ended !== 'number') return
+    const key = gameOverKey
+    if (!key) return
+    if (hasSoloRunBeenRecorded(key)) return
+    const p = room.players[0]
+    addSoloRun({
+      nickname: p.nickname,
+      durationMs: Math.max(0, ended - started),
+      reshuffleCount: room.reshuffleCount ?? 0,
+      finishedAt: ended,
+      score: p.score,
+    })
+    markSoloRunRecorded(key)
+  }, [room, gameOverKey])
+
   if (!room) {
     return (
       <div className="app-shell">
@@ -209,6 +230,17 @@ export function GameView({ game }: Props) {
 
   const me = room.players.find((p) => p.playerId === game.playerId)
   const claimedSets = room.claimedSets ?? []
+
+  const soloRunSummary =
+    room.status === 'finished' &&
+    room.players.length === 1 &&
+    typeof room.gameStartedAt === 'number' &&
+    typeof room.gameEndedAt === 'number'
+      ? {
+          durationMs: room.gameEndedAt - room.gameStartedAt,
+          reshuffleCount: room.reshuffleCount ?? 0,
+        }
+      : null
 
   const getSlotPresentation = (
     slotIndex: number,
@@ -271,7 +303,50 @@ export function GameView({ game }: Props) {
     <div className="game-layout">
       <GameTutorialModal open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
       {room.status === 'finished' && gameOverKey && (
-        <GameOverOverlay players={room.players} roomCode={room.roomCode} gameKey={gameOverKey} />
+        <GameOverOverlay
+          players={room.players}
+          roomCode={room.roomCode}
+          gameKey={gameOverKey}
+          soloRunSummary={soloRunSummary}
+        />
+      )}
+      {reshuffleConfirmOpen && (
+        <div
+          className="reshuffle-confirm-backdrop"
+          role="presentation"
+          onClick={() => setReshuffleConfirmOpen(false)}
+        >
+          <div
+            className="reshuffle-confirm-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reshuffle-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="reshuffle-confirm-title" className="reshuffle-confirm-title">
+              Reshuffle the whole deck?
+            </h2>
+            <p className="reshuffle-confirm-body">
+              All cards on the table go back into the deck, everything is shuffled, and up to twelve new cards are dealt.
+              Use this when the board feels stuck — it also counts toward solo run stats.
+            </p>
+            <div className="reshuffle-confirm-actions">
+              <button type="button" onClick={() => setReshuffleConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setReshuffleConfirmOpen(false)
+                  game.reshuffleBoard()
+                }}
+              >
+                Reshuffle
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       <div className="game-top-row">
         <button
@@ -316,46 +391,60 @@ export function GameView({ game }: Props) {
       )}
       <div className="board-area">
         <div className="board">
-        {room.board.map((_, slotIndex) => {
-          const pres = getSlotPresentation(slotIndex)
-          if (!pres) return null
-          const { card, imageClass } = pres
-          const selected = selectedIds.includes(card.id)
-          const boardBusy = claimReplace !== null
-          const playable = room.status === 'in-progress' && !boardBusy
-          const imgKey = claimReplace
-            ? `${claimReplace.phase}-${slotIndex}-${card.id}`
-            : `${slotIndex}-${card.id}`
-          return (
-            <button
-              key={slotIndex}
-              type="button"
-              className={`card-tile ${selected ? 'selected' : ''} ${!playable ? 'disabled' : ''}`}
-              disabled={!playable}
-              data-card-count={Number(card.count)}
-              onClick={() => playable && toggleCard(card)}
-            >
-              <img
-                key={imgKey}
-                className={`card-image ${imageClass}`.trim()}
-                src={cardImageFor(card)}
-                alt={cardDescription(card)}
-              />
-            </button>
-          )
-        })}
+          {room.board.map((_, slotIndex) => {
+            const pres = getSlotPresentation(slotIndex)
+            if (!pres) return null
+            const { card, imageClass } = pres
+            const selected = selectedIds.includes(card.id)
+            const boardBusy = claimReplace !== null
+            const playable = room.status === 'in-progress' && !boardBusy
+            const imgKey = claimReplace
+              ? `${claimReplace.phase}-${slotIndex}-${card.id}`
+              : `${slotIndex}-${card.id}`
+            return (
+              <button
+                key={slotIndex}
+                type="button"
+                className={`card-tile ${selected ? 'selected' : ''} ${!playable ? 'disabled' : ''}`}
+                disabled={!playable}
+                data-card-count={Number(card.count)}
+                onClick={() => playable && toggleCard(card)}
+              >
+                <span className="card-slot-label" aria-hidden="true" title={`Slot ${slotIndex + 1}`}>
+                  {slotIndex + 1}
+                </span>
+                <img
+                  key={imgKey}
+                  className={`card-image ${imageClass}`.trim()}
+                  src={cardImageFor(card)}
+                  alt={cardDescription(card)}
+                  draggable={false}
+                />
+              </button>
+            )
+          })}
         </div>
+        {game.lastSetResult && (
+          <div className="board-error-popover-wrap" role="alert" aria-live="assertive">
+            <div className="board-error-popover" onAnimationEnd={game.clearLastSetResult}>
+              {game.lastSetResult}
+            </div>
+          </div>
+        )}
       </div>
       <aside className="sidebar">
         <h2>Room {room.roomCode}</h2>
         <p>Status: {room.status}</p>
         <p>Deck remaining: {room.deckCount}</p>
+        {room.status === 'in-progress' && (
+          <p className="sidebar-meta">Reshuffles this game: {room.reshuffleCount ?? 0}</p>
+        )}
         {me?.isHost && room.status === 'in-progress' && (
           <button
             type="button"
             className="reshuffle-deck"
             title="Put all cards on the table back with the deck, shuffle, and deal up to 12 on the board"
-            onClick={() => game.reshuffleBoard()}
+            onClick={() => setReshuffleConfirmOpen(true)}
           >
             Reshuffle deck
           </button>
@@ -400,11 +489,6 @@ export function GameView({ game }: Props) {
             )
           })}
         </ul>
-        {game.lastSetResult && (
-          <div className="toast toast-error" onAnimationEnd={game.clearLastSetResult}>
-            {game.lastSetResult}
-          </div>
-        )}
       </aside>
     </div>
   )

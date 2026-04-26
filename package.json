@@ -7,12 +7,14 @@
     "dev:client": "npm run dev --prefix client",
     "dev": "npm-run-all --parallel dev:server dev:client",
     "build": "npm install --prefix client && npm run build --prefix client",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "deploy:cf-worker": "npm install --prefix cloudflare/set-game && npm run deploy --prefix cloudflare/set-game",
+    "dev:cf-worker": "npm run dev --prefix cloudflare/set-game"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Multiplayer Set (Express + WebSocket + Vite). Deploy on Render: build npm ci && npm run build, start npm start (see render.yaml).",
+  "description": "Multiplayer Set (Express + WebSocket + Vite). See CLOUDFLARE.md for Cloudflare deploy; npm run build then npm start for a single Node server + static client.",
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",

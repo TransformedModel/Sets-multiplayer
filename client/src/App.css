@@ -45,6 +45,60 @@ body {
   box-sizing: border-box;
 }
 
+.app-shell--home {
+  align-items: flex-start;
+}
+
+.home-entry-stack {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.home-mode-toggle {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(71, 85, 105, 0.55);
+}
+
+.home-mode-tab {
+  flex: 1;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #9ca3af;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 12px;
+  min-height: 44px;
+}
+
+.home-mode-tab:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  color: #e5e7eb;
+}
+
+.home-mode-tab--active {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #f8fafc;
+}
+
+.field-hint {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
 .card {
   background: rgba(15, 23, 42, 0.9);
   border-radius: 24px;
@@ -317,6 +371,7 @@ button:disabled {
 .board-area {
   grid-row: 2;
   grid-column: 1;
+  position: relative;
   min-width: 0;
   min-height: 0;
   width: 100%;
@@ -343,6 +398,7 @@ button:disabled {
 }
 
 .card-tile {
+  position: relative;
   background: #f9fafb;
   border-radius: 16px;
   border: 2px solid transparent;
@@ -358,11 +414,36 @@ button:disabled {
   -webkit-tap-highlight-color: rgba(255, 234, 0, 0.25);
 }
 
-.card-tile.selected {
-  border-color: #ffea00;
-  box-shadow:
-    0 0 0 2px rgba(255, 234, 0, 0.85),
-    0 0 18px rgba(255, 234, 0, 0.45);
+/* Inset ring so selection is never clipped by overflow:hidden; paints on top of the art. */
+.card-tile.selected::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 11px;
+  border: 3px solid #facc15;
+  box-shadow: inset 0 0 0 1px rgba(250, 250, 210, 0.35), 0 0 16px rgba(250, 204, 21, 0.45);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.card-slot-label {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 4;
+  margin: 0;
+  padding: 0;
+  font-family: ui-serif, Georgia, 'Times New Roman', Times, serif;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: right;
+  color: #000000;
+  background: none;
+  border: none;
+  pointer-events: none;
+  user-select: none;
 }
 
 .card-tile.disabled {
@@ -371,6 +452,8 @@ button:disabled {
 }
 
 .card-image {
+  position: relative;
+  z-index: 1;
   display: block;
   width: auto;
   height: auto;
@@ -380,6 +463,8 @@ button:disabled {
   flex: 0 1 auto;
   min-width: 0;
   min-height: 0;
+  pointer-events: none;
+  user-select: none;
 }
 
 @keyframes cardReplaceLeave {
@@ -419,6 +504,12 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.sidebar .sidebar-meta {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
 }
 
 button.reshuffle-deck {
@@ -627,6 +718,62 @@ button.reshuffle-deck:hover:not(:disabled) {
   }
 }
 
+.board-error-popover-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.board-error-popover {
+  pointer-events: none;
+  padding: 14px 22px;
+  border-radius: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  max-width: min(340px, 92%);
+  color: #fef2f2;
+  background: rgba(127, 29, 29, 0.88);
+  border: 1px solid rgba(254, 202, 202, 0.45);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  animation: boardErrorPopoverOut 2.2s forwards;
+}
+
+@keyframes boardErrorPopoverOut {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  10% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+/* Card tiles: avoid global button hover lift (can delay selection repaint in some browsers). */
+button.card-tile:hover:not(:disabled) {
+  transform: none;
+}
+
+button.card-tile:focus-visible {
+  outline: 2px solid #fbbf24;
+  outline-offset: 2px;
+}
+
 /* Game over: leaderboard + confetti */
 
 @keyframes confettiFall {
@@ -717,6 +864,142 @@ button.reshuffle-deck:hover:not(:disabled) {
   font-size: 16px;
   color: #fcd34d;
   font-weight: 500;
+}
+
+.game-over-solo-run {
+  margin: -8px 0 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.game-over-solo-run strong {
+  color: #a7f3d0;
+  font-weight: 700;
+}
+
+.reshuffle-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.reshuffle-confirm-panel {
+  width: min(400px, 100%);
+  padding: 22px 22px 20px;
+  border-radius: 18px;
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.99), rgba(15, 23, 42, 0.99));
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: #e5e7eb;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.reshuffle-confirm-title {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.reshuffle-confirm-body {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #cbd5e1;
+}
+
+.reshuffle-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.solo-lb-card {
+  background: rgba(15, 23, 42, 0.88);
+  border-radius: 20px;
+  padding: 22px 20px 20px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.45);
+  color: #e5e7eb;
+  width: 100%;
+}
+
+.solo-lb-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.solo-lb-heading {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.solo-lb-clear {
+  font-size: 12px;
+  padding: 6px 12px;
+  min-height: auto;
+}
+
+.solo-lb-hint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+.solo-lb-empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9ca3af;
+}
+
+.solo-lb-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -4px;
+}
+
+.solo-lb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.solo-lb-table th,
+.solo-lb-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.45);
+}
+
+.solo-lb-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.solo-lb-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.solo-lb-table td {
+  font-variant-numeric: tabular-nums;
+  color: #e5e7eb;
 }
 
 .leaderboard-title {
@@ -1023,6 +1306,17 @@ button.reshuffle-deck:hover:not(:disabled) {
     transform-origin: center center;
   }
 
+  .card-slot-label {
+    top: 4px;
+    right: 4px;
+    font-size: 11px;
+  }
+
+  .card-tile.selected::after {
+    inset: 4px;
+    border-radius: 9px;
+  }
+
   .sidebar {
     grid-row: 3;
     grid-column: 1;
@@ -1057,6 +1351,12 @@ button.reshuffle-deck:hover:not(:disabled) {
     border-radius: 12px;
     padding: 4px 6px;
     aspect-ratio: 3 / 4.5;
+  }
+
+  .card-slot-label {
+    top: 3px;
+    right: 3px;
+    font-size: 9px;
   }
 
   .game-top-bar-label {
@@ -1119,6 +1419,68 @@ html[data-theme='light'] .hint {
 
 html[data-theme='light'] .subtitle strong {
   color: #0f2418;
+}
+
+html[data-theme='light'] .field-hint {
+  color: #5a6d5f;
+}
+
+html[data-theme='light'] .home-mode-toggle {
+  background: rgba(255, 253, 248, 0.9);
+  border-color: rgba(61, 107, 79, 0.35);
+}
+
+html[data-theme='light'] .home-mode-tab {
+  color: #4a6352;
+}
+
+html[data-theme='light'] .home-mode-tab--active {
+  background: #f0f6ec;
+  border-color: rgba(61, 107, 79, 0.45);
+  color: #0f2418;
+}
+
+html[data-theme='light'] .solo-lb-card {
+  background: rgba(255, 253, 248, 0.96);
+  border-color: rgba(61, 107, 79, 0.35);
+  color: #1e2b24;
+  box-shadow: 0 12px 32px rgba(45, 74, 56, 0.1);
+}
+
+html[data-theme='light'] .solo-lb-heading {
+  color: #0f2418;
+}
+
+html[data-theme='light'] .solo-lb-hint,
+html[data-theme='light'] .solo-lb-empty {
+  color: #4a6352;
+}
+
+html[data-theme='light'] .solo-lb-table th {
+  color: #5a6d5f;
+}
+
+html[data-theme='light'] .solo-lb-table td {
+  color: #1e2b24;
+}
+
+html[data-theme='light'] .solo-lb-table th,
+html[data-theme='light'] .solo-lb-table td {
+  border-bottom-color: rgba(61, 107, 79, 0.22);
+}
+
+html[data-theme='light'] .reshuffle-confirm-panel {
+  background: linear-gradient(165deg, rgba(255, 253, 248, 0.99), rgba(240, 246, 236, 0.99));
+  border-color: rgba(61, 107, 79, 0.4);
+  color: #1e2b24;
+}
+
+html[data-theme='light'] .reshuffle-confirm-title {
+  color: #0f2418;
+}
+
+html[data-theme='light'] .reshuffle-confirm-body {
+  color: #3d5244;
 }
 
 html[data-theme='light'] input {
@@ -1310,6 +1672,12 @@ html[data-theme='light'] .toast-error {
   color: #7f1d1d;
 }
 
+html[data-theme='light'] .board-error-popover {
+  background: rgba(127, 29, 29, 0.82);
+  color: #fff5f5;
+  border-color: rgba(254, 202, 202, 0.55);
+}
+
 html[data-theme='light'] .celebration-kicker {
   color: #2f5d40;
 }
@@ -1328,6 +1696,14 @@ html[data-theme='light'] .game-over-heading {
 
 html[data-theme='light'] .game-over-sub {
   color: #2f5d40;
+}
+
+html[data-theme='light'] .game-over-solo-run {
+  color: #3d5244;
+}
+
+html[data-theme='light'] .game-over-solo-run strong {
+  color: #1d5c3a;
 }
 
 html[data-theme='light'] .leaderboard-name {
