@@ -1,0 +1,10 @@
+name = "online-set-game"
+main = "src/index.ts"
+compatibility_date = "2025-02-01"
+
+[durable_objects]
+bindings = [{ name = "GAME_HUB", class_name = "GameHub" }]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["GameHub"]
