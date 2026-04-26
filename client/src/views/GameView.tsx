@@ -3,9 +3,9 @@ import type { Card, ClaimedSetEntry, RoomState } from '../ws/useWebSocketGame'
 import { cardImageFor, cardDescription } from '../cards/imageMap'
 import { GameOverOverlay } from '../components/GameOverOverlay'
 import { GameTutorialModal } from '../components/GameTutorialModal'
-import { ThemeToggle } from '../components/ThemeToggle'
 import { countSetsOnBoard, enumerateSetsOnBoard } from '../set/countSetsOnBoard'
 import { addSoloRun, hasSoloRunBeenRecorded, markSoloRunRecorded } from '../solo/soloLeaderboard'
+import { useTheme } from '../theme/ThemeProvider'
 
 type Props = {
   game: {
@@ -15,11 +15,13 @@ type Props = {
     lastSetResult: string | null
     clearLastSetResult: () => void
     reshuffleBoard: () => void
+    recordSoloRun: () => void
     error: string | null
     clearError: () => void
     lastReshuffleError: string | null
     clearLastReshuffleError: () => void
   }
+  onPlayAgain?: () => void
 }
 
 type CelebrationState = {
@@ -52,8 +54,9 @@ function MiniSetThumbnails({ cards }: { cards: Card[] }) {
   )
 }
 
-export function GameView({ game }: Props) {
+export function GameView({ game, onPlayAgain }: Props) {
   const room = game.room
+  const { theme, toggleTheme } = useTheme()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [celebration, setCelebration] = useState<CelebrationState | null>(null)
   const prevClaimedLenRef = useRef<number | null>(null)
@@ -216,6 +219,7 @@ export function GameView({ game }: Props) {
       score: p.score,
     })
     markSoloRunRecorded(key)
+    game.recordSoloRun()
   }, [room, gameOverKey])
 
   if (!room) {
@@ -302,12 +306,40 @@ export function GameView({ game }: Props) {
   return (
     <div className="game-layout">
       <GameTutorialModal open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+      <div className="game-top-right-controls">
+        <button
+          type="button"
+          className="game-icon-button"
+          aria-haspopup="dialog"
+          aria-expanded={tutorialOpen}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            // Avoid rare “open then immediately close” clicks if the dialog mounts under the pointer.
+            requestAnimationFrame(() => setTutorialOpen(true))
+          }}
+          title="How to play"
+          aria-label="How to play"
+        >
+          ❓
+        </button>
+        <button
+          type="button"
+          className="game-icon-button"
+          onClick={toggleTheme}
+          title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+        >
+          {theme === 'light' ? '☀️' : '🌙'}
+        </button>
+      </div>
       {room.status === 'finished' && gameOverKey && (
         <GameOverOverlay
           players={room.players}
           roomCode={room.roomCode}
           gameKey={gameOverKey}
           soloRunSummary={soloRunSummary}
+          onPlayAgain={onPlayAgain}
         />
       )}
       {reshuffleConfirmOpen && (
@@ -351,22 +383,12 @@ export function GameView({ game }: Props) {
       <div className="game-top-row">
         <button
           type="button"
-          className="game-top-bar game-top-bar--sets"
+          className="game-top-info game-top-info--sets"
           title="Click to log each set’s cards in the console (QA)"
           onClick={logSetsOnBoardForQA}
         >
-          <span className="game-top-bar-label">Sets on board</span>
-          <span className="game-top-bar-value">{setsOnBoard}</span>
-        </button>
-        <ThemeToggle />
-        <button
-          type="button"
-          className="game-top-bar game-top-bar--tutorial"
-          aria-haspopup="dialog"
-          aria-expanded={tutorialOpen}
-          onClick={() => setTutorialOpen(true)}
-        >
-          How to play
+          <span className="game-top-info-label">Sets on board:</span>
+          <span className="game-top-info-value">{setsOnBoard}</span>
         </button>
       </div>
       {celebration && (
@@ -434,7 +456,6 @@ export function GameView({ game }: Props) {
       </div>
       <aside className="sidebar">
         <h2>Room {room.roomCode}</h2>
-        <p>Status: {room.status}</p>
         <p>Deck remaining: {room.deckCount}</p>
         {room.status === 'in-progress' && (
           <p className="sidebar-meta">Reshuffles this game: {room.reshuffleCount ?? 0}</p>
@@ -442,7 +463,7 @@ export function GameView({ game }: Props) {
         {me?.isHost && room.status === 'in-progress' && (
           <button
             type="button"
-            className="reshuffle-deck"
+            className={`reshuffle-deck ${setsOnBoard === 0 ? 'reshuffle-deck--urgent' : ''}`.trim()}
             title="Put all cards on the table back with the deck, shuffle, and deal up to 12 on the board"
             onClick={() => setReshuffleConfirmOpen(true)}
           >

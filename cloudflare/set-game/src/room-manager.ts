@@ -227,6 +227,10 @@ export class RoomManager {
     }
   }
 
+  getRoom(roomCode: string): Room | null {
+    return this.rooms.get(roomCode) ?? null
+  }
+
   getPublicRoomState(roomCode: string): object | null {
     const room = this.rooms.get(roomCode)
     if (!room) return null

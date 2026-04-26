@@ -9,6 +9,7 @@ type Props = {
   gameKey: string
   /** Shown only for single-player finished games (solo run stats). */
   soloRunSummary?: { durationMs: number; reshuffleCount: number } | null
+  onPlayAgain?: () => void
 }
 
 type RankedPlayer = Player & { rank: number; isWinner: boolean }
@@ -53,7 +54,7 @@ function createConfettiSpecs(count: number, seedStr: string) {
   })
 }
 
-export function GameOverOverlay({ players, roomCode, gameKey, soloRunSummary }: Props) {
+export function GameOverOverlay({ players, roomCode, gameKey, soloRunSummary, onPlayAgain }: Props) {
   const ranked = useMemo(() => rankPlayers(players), [players])
   const specs = useMemo(() => createConfettiSpecs(80, gameKey), [gameKey])
   const winners = ranked.filter((p) => p.isWinner)
@@ -110,6 +111,13 @@ export function GameOverOverlay({ players, roomCode, gameKey, soloRunSummary }: 
             </li>
           ))}
         </ol>
+        {onPlayAgain && (
+          <div className="game-over-actions">
+            <button type="button" className="primary" onClick={onPlayAgain}>
+              Play again
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

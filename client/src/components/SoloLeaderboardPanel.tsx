@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { clearSoloRuns, formatRunDuration, getSoloRuns, type SoloRunEntry } from '../solo/soloLeaderboard'
+import { fetchGlobalSoloLeaderboard } from '../solo/globalSoloLeaderboard'
 
 function formatShortDate(ts: number): string {
   try {
@@ -13,6 +14,21 @@ function formatShortDate(ts: number): string {
 
 export function SoloLeaderboardPanel() {
   const [runs, setRuns] = useState<SoloRunEntry[]>(() => getSoloRuns())
+  const [sourceHint, setSourceHint] = useState<'device' | 'global'>('device')
+
+  useEffect(() => {
+    let cancelled = false
+    fetchGlobalSoloLeaderboard().then((rows) => {
+      if (cancelled) return
+      if (rows.length > 0) {
+        setRuns(rows)
+        setSourceHint('global')
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const rows = useMemo(() => {
     const sorted = [...runs].sort(
@@ -48,7 +64,9 @@ export function SoloLeaderboardPanel() {
           Clear
         </button>
       </div>
-      <p className="solo-lb-hint">Sorted by fastest time, then fewest reshuffles. Stored on this device only.</p>
+      <p className="solo-lb-hint">
+        Sorted by fastest time, then fewest reshuffles. {sourceHint === 'global' ? 'Global leaderboard.' : 'Stored on this device only.'}
+      </p>
       <div className="solo-lb-table-wrap">
         <table className="solo-lb-table">
           <thead>

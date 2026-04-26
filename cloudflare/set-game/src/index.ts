@@ -10,6 +10,12 @@ export default {
       return Response.json({ ok: true })
     }
 
+    if ((request.method === 'GET' || request.method === 'OPTIONS') && url.pathname === '/solo-leaderboard') {
+      const id = env.GAME_HUB.idFromName('global')
+      const stub = env.GAME_HUB.get(id)
+      return stub.fetch(request)
+    }
+
     // WebSocket handshake is GET `/` + `Upgrade: websocket` — must run before the browser "explainer" for GET `/`.
     const upgrade = request.headers.get('Upgrade') ?? ''
     if (upgrade.toLowerCase() === 'websocket') {

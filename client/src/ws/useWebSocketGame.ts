@@ -60,6 +60,7 @@ type GameMessage =
   | { type: 'gameState'; room: RoomState }
   | { type: 'setClaimResult'; success: boolean; reason?: string }
   | { type: 'reshuffleResult'; ok: boolean; message?: string }
+  | { type: 'soloRunRecorded'; ok: boolean }
   | { type: 'error'; message: string }
 
 function normalizeRoom(r: RoomState): RoomState {
@@ -214,7 +215,24 @@ export function useWebSocketGame() {
     send({ type: 'reshuffleBoard' })
   }, [send])
 
+  const recordSoloRun = useCallback(() => {
+    send({ type: 'recordSoloRun' })
+  }, [send])
+
   const clearError = useCallback(() => setError(null), [])
+  const reset = useCallback(() => {
+    const ws = wsRef.current
+    wsRef.current = null
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      ws.close()
+    }
+    setConnected(false)
+    setRoom(null)
+    setPlayerId(null)
+    setError(null)
+    setLastSetResult(null)
+    setLastReshuffleError(null)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -231,6 +249,7 @@ export function useWebSocketGame() {
     playerId,
     error,
     clearError,
+    reset,
     lastSetResult,
     clearLastSetResult: () => setLastSetResult(null),
     lastReshuffleError,
@@ -240,6 +259,7 @@ export function useWebSocketGame() {
     startGame,
     claimSet,
     reshuffleBoard,
+    recordSoloRun,
   }
 }
 

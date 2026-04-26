@@ -2,6 +2,17 @@ import { DurableObject } from 'cloudflare:workers'
 import { RoomManager, type HubSnapshot } from './room-manager'
 
 type Attachment = { playerId: string; roomCode: string }
+type SoloLeaderboardEntry = {
+  id: string
+  nickname: string
+  durationMs: number
+  reshuffleCount: number
+  finishedAt: number
+  score: number
+}
+
+const SOLO_LEADERBOARD_KEY = 'solo-leaderboard-v1'
+const SOLO_LEADERBOARD_MAX = 50
 
 function send(ws: WebSocket, type: string, payload: Record<string, unknown> = {}) {
   try {
@@ -38,6 +49,52 @@ export class GameHub extends DurableObject {
     await this.ctx.storage.put('snap', this.rm.toSnapshot())
   }
 
+  private async getSoloLeaderboard(): Promise<SoloLeaderboardEntry[]> {
+    const raw = await this.ctx.storage.get<SoloLeaderboardEntry[]>(SOLO_LEADERBOARD_KEY)
+    if (!raw || !Array.isArray(raw)) return []
+    return raw.filter(
+      (e): e is SoloLeaderboardEntry =>
+        !!e &&
+        typeof e === 'object' &&
+        typeof e.id === 'string' &&
+        typeof e.nickname === 'string' &&
+        typeof e.durationMs === 'number' &&
+        typeof e.reshuffleCount === 'number' &&
+        typeof e.finishedAt === 'number' &&
+        typeof e.score === 'number',
+    )
+  }
+
+  private async recordSoloRunFromRoom(roomCode: string, playerId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    const room = this.rm.getRoom(roomCode)
+    if (!room) return { ok: false, error: 'Room not found' }
+    if (room.status !== 'finished') return { ok: false, error: 'Game is not finished' }
+    if (room.players.length !== 1) return { ok: false, error: 'Not a solo game' }
+    if (String(room.players[0].playerId) !== String(playerId)) return { ok: false, error: 'Player mismatch' }
+    if (typeof room.gameStartedAt !== 'number' || typeof room.gameEndedAt !== 'number') {
+      return { ok: false, error: 'Missing timestamps' }
+    }
+    const durationMs = Math.max(0, room.gameEndedAt - room.gameStartedAt)
+    const entry: SoloLeaderboardEntry = {
+      id:
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${room.gameEndedAt}-${Math.random().toString(36).slice(2, 10)}`,
+      nickname: room.players[0].nickname || 'Player',
+      durationMs,
+      reshuffleCount: room.reshuffleCount ?? 0,
+      finishedAt: room.gameEndedAt,
+      score: room.players[0].score ?? 0,
+    }
+
+    const list = await this.getSoloLeaderboard()
+    list.push(entry)
+    list.sort((a, b) => a.durationMs - b.durationMs || a.reshuffleCount - b.reshuffleCount || b.finishedAt - a.finishedAt)
+    const trimmed = list.slice(0, SOLO_LEADERBOARD_MAX)
+    await this.ctx.storage.put(SOLO_LEADERBOARD_KEY, trimmed)
+    return { ok: true }
+  }
+
   private broadcastRoom(roomCode: string): void {
     const room = this.rm.getPublicRoomState(roomCode)
     if (!room) return
@@ -56,14 +113,41 @@ export class GameHub extends DurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
     const upgrade = request.headers.get('Upgrade') ?? ''
-    if (upgrade.toLowerCase() !== 'websocket') {
-      return new Response('Expected WebSocket', { status: 426 })
+    if (upgrade.toLowerCase() === 'websocket') {
+      const pair = new WebSocketPair()
+      const [client, server] = Object.values(pair)
+      this.ctx.acceptWebSocket(server)
+      return new Response(null, { status: 101, webSocket: client })
     }
-    const pair = new WebSocketPair()
-    const [client, server] = Object.values(pair)
-    this.ctx.acceptWebSocket(server)
-    return new Response(null, { status: 101, webSocket: client })
+
+    if (request.method === 'GET' && url.pathname === '/solo-leaderboard') {
+      const rows = await this.getSoloLeaderboard()
+      return Response.json(
+        { ok: true, rows },
+        {
+          headers: {
+            'access-control-allow-origin': '*',
+            'access-control-allow-methods': 'GET, OPTIONS',
+          },
+        },
+      )
+    }
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-allow-methods': 'GET, OPTIONS',
+          'access-control-allow-headers': 'content-type',
+          'access-control-max-age': '86400',
+        },
+      })
+    }
+
+    return new Response('Not found', { status: 404 })
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -178,6 +262,21 @@ export class GameHub extends DurableObject {
       send(ws, 'reshuffleResult', { ok: true })
       await this.persist()
       this.broadcastRoom(roomCode)
+      return
+    }
+
+    if (type === 'recordSoloRun') {
+      if (!roomCode || !playerId) {
+        send(ws, 'error', { message: 'Session expired — refresh the page and rejoin the room.' })
+        return
+      }
+      const result = await this.recordSoloRunFromRoom(roomCode, playerId)
+      if (!result.ok) {
+        send(ws, 'error', { message: result.error })
+        return
+      }
+      send(ws, 'soloRunRecorded', { ok: true })
+      return
     }
   }
 

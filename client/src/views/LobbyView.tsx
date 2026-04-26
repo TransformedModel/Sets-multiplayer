@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { RoomState } from '../ws/useWebSocketGame'
 
 type Props = {
@@ -10,10 +11,9 @@ type Props = {
     clearError: () => void
   }
   onStartGame: () => void
-  onOpenHowToPlay: () => void
 }
 
-export function LobbyView({ game, onStartGame, onOpenHowToPlay }: Props) {
+export function LobbyView({ game, onStartGame }: Props) {
   const room = game.room
   if (!room) {
     return (
@@ -21,9 +21,6 @@ export function LobbyView({ game, onStartGame, onOpenHowToPlay }: Props) {
         <div className="card">
           <div className="home-card-header">
             <h1 className="title">Lobby</h1>
-            <button type="button" className="home-how-to-play" aria-haspopup="dialog" onClick={onOpenHowToPlay}>
-              How to play
-            </button>
           </div>
           {game.error ? (
             <>
@@ -50,6 +47,13 @@ export function LobbyView({ game, onStartGame, onOpenHowToPlay }: Props) {
 
   const me = room.players.find((p) => p.playerId === game.playerId)
   const isHost = me?.isHost ?? false
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!copyStatus) return
+    const t = window.setTimeout(() => setCopyStatus(null), 1400)
+    return () => window.clearTimeout(t)
+  }, [copyStatus])
 
   const handleStart = () => {
     if (!isHost) return
@@ -62,18 +66,42 @@ export function LobbyView({ game, onStartGame, onOpenHowToPlay }: Props) {
       <div className="card">
         <div className="home-card-header">
           <h1 className="title">Lobby</h1>
+        </div>
+        <div className="room-code-row">
+          <p className="subtitle room-code-text">
+            Room code: <strong>{room.roomCode}</strong>
+          </p>
           <button
             type="button"
-            className="home-how-to-play"
-            aria-haspopup="dialog"
-            onClick={onOpenHowToPlay}
+            className="room-code-copy"
+            onClick={async () => {
+              const base = typeof window !== 'undefined' ? window.location.origin : ''
+              const link = `${base}/?room=${encodeURIComponent(room.roomCode)}`
+              try {
+                await navigator.clipboard.writeText(link)
+                setCopyStatus('Copied')
+              } catch {
+                try {
+                  const ta = document.createElement('textarea')
+                  ta.value = link
+                  ta.style.position = 'fixed'
+                  ta.style.opacity = '0'
+                  document.body.appendChild(ta)
+                  ta.select()
+                  document.execCommand('copy')
+                  document.body.removeChild(ta)
+                  setCopyStatus('Copied')
+                } catch {
+                  setCopyStatus('Copy failed')
+                }
+              }
+            }}
+            aria-label="Copy room link"
+            title="Copy room link"
           >
-            How to play
+            {copyStatus ?? 'Copy link'}
           </button>
         </div>
-        <p className="subtitle">
-          Room code: <strong>{room.roomCode}</strong>
-        </p>
         <div className="player-list">
           {room.players.map((p) => (
             <div key={p.playerId} className="player-row">

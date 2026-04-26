@@ -24,6 +24,15 @@ export function HomeView() {
     setStoredNickname(nickname)
   }, [nickname])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const code = new URLSearchParams(window.location.search).get('room')
+    const normalized = (code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4)
+    if (!normalized) return
+    setEntryMode('join')
+    setRoomCodeInput(normalized)
+  }, [])
+
   const resolvedNickname = nickname.trim() || 'Player'
   const canJoin = roomCodeInput.trim().length > 0
 
@@ -48,39 +57,60 @@ export function HomeView() {
   if (view === 'lobby') {
     return (
       <>
-        <ThemeToggle />
         <GameTutorialModal open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+        <div className="home-top-controls">
+          <button
+            type="button"
+            className="home-how-to-play"
+            aria-haspopup="dialog"
+            aria-expanded={tutorialOpen}
+            onClick={() => setTutorialOpen(true)}
+          >
+            How to play
+          </button>
+          <ThemeToggle />
+        </div>
         <LobbyView
           game={game}
           onStartGame={() => setView('game')}
-          onOpenHowToPlay={() => setTutorialOpen(true)}
         />
       </>
     )
   }
 
   if (view === 'game') {
-    return <GameView game={game} />
+    return (
+      <GameView
+        game={game}
+        onPlayAgain={() => {
+          game.reset()
+          setRoomCodeInput('')
+          setView('home')
+        }}
+      />
+    )
   }
 
   return (
     <>
-      <ThemeToggle />
       <GameTutorialModal open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+      <div className="home-top-controls">
+        <button
+          type="button"
+          className="home-how-to-play"
+          aria-haspopup="dialog"
+          aria-expanded={tutorialOpen}
+          onClick={() => setTutorialOpen(true)}
+        >
+          How to play
+        </button>
+        <ThemeToggle />
+      </div>
       <div className="app-shell app-shell--home">
         <div className="home-entry-stack">
           <div className="card">
             <div className="home-card-header">
               <h1 className="title">Online Set</h1>
-              <button
-                type="button"
-                className="home-how-to-play"
-                aria-haspopup="dialog"
-                aria-expanded={tutorialOpen}
-                onClick={() => setTutorialOpen(true)}
-              >
-                How to play
-              </button>
             </div>
             <p className="subtitle">Play Set with friends in your browser — or practice solo in your own room.</p>
 
