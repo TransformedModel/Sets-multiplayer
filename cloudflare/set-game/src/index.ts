@@ -10,7 +10,15 @@ export default {
       return Response.json({ ok: true })
     }
 
-    // Plain browser GET to `/` has no WebSocket upgrade — this Worker is API-only (SPA is on Pages).
+    // WebSocket handshake is GET `/` + `Upgrade: websocket` — must run before the browser "explainer" for GET `/`.
+    const upgrade = request.headers.get('Upgrade') ?? ''
+    if (upgrade.toLowerCase() === 'websocket') {
+      const id = env.GAME_HUB.idFromName('global')
+      const stub = env.GAME_HUB.get(id)
+      return stub.fetch(request)
+    }
+
+    // Plain browser GET to `/` (no WebSocket upgrade) — API-only; SPA is on Pages.
     if (request.method === 'GET' && url.pathname === '/') {
       const accept = request.headers.get('Accept') ?? ''
       if (accept.includes('application/json')) {
@@ -34,13 +42,6 @@ export default {
         status: 200,
         headers: { 'content-type': 'text/html; charset=utf-8' },
       })
-    }
-
-    const upgrade = request.headers.get('Upgrade') ?? ''
-    if (upgrade.toLowerCase() === 'websocket') {
-      const id = env.GAME_HUB.idFromName('global')
-      const stub = env.GAME_HUB.get(id)
-      return stub.fetch(request)
     }
 
     return new Response('Not found', { status: 404 })

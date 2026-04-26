@@ -85,4 +85,6 @@ Set **environment variables** for the build in Pages only if you inject them int
 ## 5. Verification
 
 1. Open the Pages URL, create a room, confirm no WebSocket errors in the network tab (`101` on WS).
+
+If the browser reports `WebSocket connection to 'wss://…' failed` but `GET /health` works, the Worker may be answering the WebSocket handshake with **`200` HTML** instead of **`101`**. The entry Worker must handle `Upgrade: websocket` **before** any “friendly `GET /` page” branch (a handshake is still `GET /`).
 2. Second browser (or incognito): join with code, host starts, play a full round including invalid set and host reshuffle.
