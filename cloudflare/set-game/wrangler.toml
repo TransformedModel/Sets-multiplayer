@@ -1,4 +1,4 @@
-name = "online-set-game"
+name = "sets-game"
 main = "src/index.ts"
 compatibility_date = "2025-02-01"
 

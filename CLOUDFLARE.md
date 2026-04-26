@@ -11,10 +11,13 @@ npx wrangler login   # once per machine
 npx wrangler deploy
 ```
 
-After deploy, Wrangler prints a URL like `https://online-set-game.<your-subdomain>.workers.dev`.
+After deploy, Wrangler prints a URL like `https://sets-game.<your-subdomain>.workers.dev` (the Worker `name` in [`wrangler.toml`](cloudflare/set-game/wrangler.toml) must match your Workers Builds project name if you use CI).
 
 - **Health check:** `GET https://<worker-host>/health` → `{ "ok": true }`
 - **WebSocket:** connect to `wss://<worker-host>/` (same host, `Upgrade: websocket`). The client uses the root URL with no path.
+- **Browser:** Opening `https://<worker-host>/` in a tab shows a short HTML explainer (this URL is **not** the game UI). Play from your **Pages** URL after building with `VITE_WS_URL` above.
+
+**Workers Builds / CI:** Use only `CLOUDFLARE_API_TOKEN` (or the dashboard token Workers injects). Do **not** run `npx wrangler login` in the build step—when `CLOUDFLARE_API_TOKEN` is set, Wrangler refuses OAuth login. Build can be `npm ci` (or `npm install`); deploy step: `npx wrangler deploy`.
 
 First deploy creates the Durable Object migration (`GameHub`) using **`new_sqlite_classes`** (required on the Workers free plan; `new_classes` fails with API error 10097). Do not rename `class_name` in [`wrangler.toml`](cloudflare/set-game/wrangler.toml) without a follow-up migration.
 
@@ -28,11 +31,11 @@ In the Cloudflare dashboard: Workers & Pages → your worker → Settings → Tr
 
 The browser must know where the Worker lives. Set **`VITE_WS_URL`** at **build time** (Vite inlines `import.meta.env`).
 
-Example (replace with your worker or custom domain):
+Example (replace host with your worker or custom domain):
 
 ```bash
 cd client
-VITE_WS_URL=wss://online-set-game.your-subdomain.workers.dev npm run build
+VITE_WS_URL=wss://sets-game.your-subdomain.workers.dev npm run build
 ```
 
 Rules:
@@ -44,7 +47,7 @@ Rules:
 Local UI against a remote Worker:
 
 ```bash
-VITE_WS_URL=wss://online-set-game.your-subdomain.workers.dev npm run dev --prefix client
+VITE_WS_URL=wss://sets-game.your-subdomain.workers.dev npm run dev --prefix client
 ```
 
 ## 3. Cloudflare Pages (static SPA)
