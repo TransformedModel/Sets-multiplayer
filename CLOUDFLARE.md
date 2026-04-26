@@ -16,7 +16,7 @@ After deploy, Wrangler prints a URL like `https://online-set-game.<your-subdomai
 - **Health check:** `GET https://<worker-host>/health` → `{ "ok": true }`
 - **WebSocket:** connect to `wss://<worker-host>/` (same host, `Upgrade: websocket`). The client uses the root URL with no path.
 
-First deploy creates the Durable Object migration (`GameHub`). Do not rename `class_name` in [`wrangler.toml`](cloudflare/set-game/wrangler.toml) without a follow-up migration.
+First deploy creates the Durable Object migration (`GameHub`) using **`new_sqlite_classes`** (required on the Workers free plan; `new_classes` fails with API error 10097). Do not rename `class_name` in [`wrangler.toml`](cloudflare/set-game/wrangler.toml) without a follow-up migration.
 
 Optional: run `npx wrangler types` in `cloudflare/set-game` after changing bindings; the generated `worker-configuration.d.ts` is gitignored—this repo uses a small hand-written [`src/env.d.ts`](cloudflare/set-game/src/env.d.ts) instead.
 

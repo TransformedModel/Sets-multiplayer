@@ -7,4 +7,5 @@ bindings = [{ name = "GAME_HUB", class_name = "GameHub" }]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["GameHub"]
+# Free Workers accounts require SQLite-backed Durable Objects (code 10097 if you use new_classes).
+new_sqlite_classes = ["GameHub"]
