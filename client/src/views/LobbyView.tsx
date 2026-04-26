@@ -5,6 +5,9 @@ type Props = {
     room: RoomState | null
     playerId: string | null
     startGame: () => void
+    connected: boolean
+    error: string | null
+    clearError: () => void
   }
   onStartGame: () => void
   onOpenHowToPlay: () => void
@@ -22,7 +25,24 @@ export function LobbyView({ game, onStartGame, onOpenHowToPlay }: Props) {
               How to play
             </button>
           </div>
-          <p className="subtitle">Connecting to room…</p>
+          {game.error ? (
+            <>
+              <p className="subtitle">{game.error}</p>
+              <p className="hint">
+                If you just deployed, confirm the game Worker is reachable at your API domain (try{' '}
+                <code>/health</code> over HTTPS) and that Pages was built with <code>VITE_WS_URL</code> set to that
+                host ( <code>wss://…</code> ). The API hostname must be attached to the <strong>Worker</strong>, not
+                only to Pages.
+              </p>
+              <button type="button" className="primary" onClick={() => game.clearError()}>
+                Dismiss
+              </button>
+            </>
+          ) : (
+            <p className="subtitle">
+              {game.connected ? 'Syncing with server…' : 'Connecting to server…'}
+            </p>
+          )}
         </div>
       </div>
     )

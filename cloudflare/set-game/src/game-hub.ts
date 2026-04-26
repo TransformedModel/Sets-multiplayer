@@ -56,8 +56,8 @@ export class GameHub extends DurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
-    const upgrade = request.headers.get('Upgrade')
-    if (upgrade !== 'websocket') {
+    const upgrade = request.headers.get('Upgrade') ?? ''
+    if (upgrade.toLowerCase() !== 'websocket') {
       return new Response('Expected WebSocket', { status: 426 })
     }
     const pair = new WebSocketPair()

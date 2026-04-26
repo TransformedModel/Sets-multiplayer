@@ -6,8 +6,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * Override anytime with VITE_WS_URL.
  */
 function getWebSocketUrl(): string {
-  const fromEnv = import.meta.env.VITE_WS_URL as string | undefined
-  if (fromEnv) return fromEnv
+  const raw = import.meta.env.VITE_WS_URL as string | undefined
+  if (raw) {
+    const trimmed = raw.trim().replace(/^['"]|['"]$/g, '')
+    if (trimmed) return trimmed
+  }
   if (typeof window === 'undefined') return 'ws://localhost:4000'
   if (import.meta.env.DEV) {
     const host = window.location.hostname

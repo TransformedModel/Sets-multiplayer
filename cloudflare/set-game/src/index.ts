@@ -36,7 +36,8 @@ export default {
       })
     }
 
-    if (request.headers.get('Upgrade') === 'websocket') {
+    const upgrade = request.headers.get('Upgrade') ?? ''
+    if (upgrade.toLowerCase() === 'websocket') {
       const id = env.GAME_HUB.idFromName('global')
       const stub = env.GAME_HUB.get(id)
       return stub.fetch(request)

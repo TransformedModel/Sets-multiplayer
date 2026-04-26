@@ -23,9 +23,20 @@ First deploy creates the Durable Object migration (`GameHub`) using **`new_sqlit
 
 Optional: run `npx wrangler types` in `cloudflare/set-game` after changing bindings; the generated `worker-configuration.d.ts` is gitignored—this repo uses a small hand-written [`src/env.d.ts`](cloudflare/set-game/src/env.d.ts) instead.
 
-### Custom domain for the Worker
+### Custom domain for the Worker (e.g. `sets-game.yourdomain.com`)
 
-In the Cloudflare dashboard: Workers & Pages → your worker → Settings → Triggers → Custom Domains (e.g. `set-api.example.com`). Use that hostname as `VITE_WS_URL` below (with `wss://`).
+The Pages hostname and the WebSocket hostname are **different** unless you use advanced routing. A subdomain like `sets-game.niharikakohli.com` must be bound to the **Worker** (`sets-game`), **not** to the Pages project.
+
+1. Dashboard → **Workers & Pages** → select the **`sets-game` Worker** (not your Pages project).
+2. **Settings** → **Domains & Routes** (or **Triggers** → **Custom Domains**, depending on dashboard version) → **Add** → enter `sets-game.niharikakohli.com` and complete the flow so the zone gets the correct DNS (hostname should be **proxied** / orange cloud when using Cloudflare DNS).
+3. Wait until TLS is active, then verify in a terminal:
+   - `curl -sS https://sets-game.niharikakohli.com/health` → `{"ok":true}`
+4. In **Pages** → your site → **Settings** → **Environment variables** (Production), set **`VITE_WS_URL`** to exactly:
+   - `wss://sets-game.niharikakohli.com`  
+   (no quotes in the dashboard value; trailing `/` is optional.)
+5. **Redeploy** the Pages project (or push an empty commit) so the client **rebuilds** with that variable. Changing `VITE_WS_URL` alone does not update an already-built `dist` until the next build.
+
+If `/health` works in the browser but the game stays on “Connecting…”, the live bundle was almost certainly built **without** `VITE_WS_URL` (it would then default to `wss://<your-pages-host>`, which does not run this Worker).
 
 ## 2. Build the client with the correct WebSocket URL
 
