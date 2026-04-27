@@ -71,15 +71,59 @@ body {
 
 .app-shell--home {
   align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.home-glyphs-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.home-glyph-img {
+  position: absolute;
+  top: -14vh;
+  width: var(--glyph-size, 48px);
+  height: auto;
+  display: block;
+  transform: translate3d(0, -12vh, 0) rotate(var(--glyph-rot, 0deg));
+  transform-origin: 50% 50%;
+  will-change: transform;
+  animation: homeGlyphFall var(--glyph-dur, 38s) linear infinite;
+  animation-delay: var(--glyph-delay, 0s);
+  user-select: none;
+  filter: saturate(1.05) opacity(0.95);
 }
 
 .home-entry-stack {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 440px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+@keyframes homeGlyphFall {
+  0% {
+    transform: translate3d(0, -14vh, 0) rotate(var(--glyph-rot, 0deg));
+  }
+  100% {
+    transform: translate3d(var(--glyph-drift, 0px), 118vh, 0) rotate(var(--glyph-rot, 0deg));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-glyph-img {
+    animation: none;
+    top: var(--glyph-static-top, 42%);
+    transform: translate3d(0, 0, 0) rotate(var(--glyph-rot, 0deg));
+    filter: saturate(1);
+  }
 }
 
 .home-mode-toggle {
@@ -1545,21 +1589,28 @@ button.card-tile:focus-visible {
   }
 }
 
-/* ---------- Light theme (beige + green) ---------- */
+/* ---------- Light theme (neutral) ---------- */
 html[data-theme='light'] :root {
-  color: #1e2b24;
-  background-color: #f2ebe0;
+  color: #111827;
+  background-color: #ffffff;
 }
 
 html[data-theme='light'] body {
-  background: radial-gradient(circle at top, #faf6ef 0%, #e4eadc 42%, #c5d4c0 100%);
+  background:
+    radial-gradient(ellipse 130% 75% at 50% -25%, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0) 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 250, 251, 0.95) 45%, rgba(243, 244, 246, 0.92) 100%);
+}
+
+html[data-theme='light'] .home-glyph-img {
+  mix-blend-mode: multiply;
+  filter: saturate(1.02) opacity(0.92);
 }
 
 html[data-theme='light'] .theme-toggle {
-  border-color: rgba(61, 107, 79, 0.45);
-  background: rgba(255, 252, 246, 0.95);
-  color: #2d4a38;
-  box-shadow: 0 4px 14px rgba(45, 74, 56, 0.12);
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.94);
+  color: #374151;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 html[data-theme='light'] .game-top-row .theme-toggle {
@@ -1567,151 +1618,151 @@ html[data-theme='light'] .game-top-row .theme-toggle {
 }
 
 html[data-theme='light'] button.game-icon-button {
-  border-color: rgba(61, 107, 79, 0.45);
-  background: rgba(255, 252, 246, 0.95);
-  color: #2d4a38;
-  box-shadow: 0 4px 14px rgba(45, 74, 56, 0.12);
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.94);
+  color: #374151;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 html[data-theme='light'] button.game-icon-button:hover:not(:disabled) {
-  border-color: rgba(61, 107, 79, 0.65);
+  border-color: rgba(15, 23, 42, 0.22);
 }
 
 html[data-theme='light'] .card {
-  background: #faf6ef;
-  border-color: rgba(61, 107, 79, 0.35);
-  box-shadow: 0 20px 50px rgba(45, 74, 56, 0.12);
-  color: #1e2b24;
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+  color: #111827;
 }
 
 html[data-theme='light'] .title {
-  color: #0f2418;
+  color: #0f172a;
 }
 
 html[data-theme='light'] .home-how-to-play {
-  background: rgba(255, 253, 248, 0.98);
-  border-color: rgba(61, 107, 79, 0.5);
-  color: #0f2418;
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #111827;
 }
 
 html[data-theme='light'] .home-how-to-play:hover {
-  background: #eef4ea;
-  border-color: rgba(45, 90, 60, 0.65);
+  background: rgba(243, 244, 246, 0.98);
+  border-color: rgba(15, 23, 42, 0.22);
 }
 
 html[data-theme='light'] .subtitle,
 html[data-theme='light'] .field-group label,
 html[data-theme='light'] .hint {
-  color: #3d5244;
+  color: #4b5563;
 }
 
 html[data-theme='light'] button.room-code-copy {
-  background: rgba(255, 253, 248, 0.98);
-  border-color: rgba(61, 107, 79, 0.45);
-  color: #0f2418;
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #111827;
 }
 
 html[data-theme='light'] button.room-code-copy:hover:not(:disabled) {
-  background: #eef4ea;
-  border-color: rgba(61, 107, 79, 0.65);
-  box-shadow: 0 8px 20px rgba(45, 74, 56, 0.12);
+  background: rgba(243, 244, 246, 0.98);
+  border-color: rgba(15, 23, 42, 0.22);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 html[data-theme='light'] .subtitle strong {
-  color: #0f2418;
+  color: #0f172a;
 }
 
 html[data-theme='light'] .field-hint {
-  color: #5a6d5f;
+  color: #6b7280;
 }
 
 html[data-theme='light'] .home-mode-toggle {
-  background: rgba(255, 253, 248, 0.9);
-  border-color: rgba(61, 107, 79, 0.35);
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 html[data-theme='light'] .home-mode-tab {
-  color: #4a6352;
+  color: #6b7280;
 }
 
 html[data-theme='light'] .home-mode-tab:hover:not(:disabled) {
-  color: #0f2418;
-  background: rgba(240, 246, 236, 0.95);
-  border-color: rgba(61, 107, 79, 0.4);
+  color: #111827;
+  background: rgba(249, 250, 251, 0.98);
+  border-color: rgba(15, 23, 42, 0.14);
   box-shadow: none;
   transform: none;
   transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(45, 74, 56, 0.12), 0 0 0 3px rgba(61, 107, 79, 0.14);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08), 0 0 0 3px rgba(15, 23, 42, 0.06);
 }
 
 html[data-theme='light'] .home-mode-tab--active {
-  background: #f0f6ec;
-  border-color: rgba(61, 107, 79, 0.45);
-  color: #0f2418;
+  background: rgba(243, 244, 246, 0.98);
+  border-color: rgba(15, 23, 42, 0.18);
+  color: #111827;
 }
 
 html[data-theme='light'] .solo-lb-card {
-  background: rgba(255, 253, 248, 0.96);
-  border-color: rgba(61, 107, 79, 0.35);
-  color: #1e2b24;
-  box-shadow: 0 12px 32px rgba(45, 74, 56, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #111827;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
 }
 
 html[data-theme='light'] .solo-lb-heading {
-  color: #0f2418;
+  color: #0f172a;
 }
 
 html[data-theme='light'] .solo-lb-hint,
 html[data-theme='light'] .solo-lb-empty {
-  color: #4a6352;
+  color: #6b7280;
 }
 
 html[data-theme='light'] .solo-lb-table th {
-  color: #5a6d5f;
+  color: #6b7280;
 }
 
 html[data-theme='light'] .solo-lb-table td {
-  color: #1e2b24;
+  color: #111827;
 }
 
 html[data-theme='light'] .solo-lb-table th,
 html[data-theme='light'] .solo-lb-table td {
-  border-bottom-color: rgba(61, 107, 79, 0.22);
+  border-bottom-color: rgba(15, 23, 42, 0.1);
 }
 
 html[data-theme='light'] .reshuffle-confirm-panel {
-  background: linear-gradient(165deg, rgba(255, 253, 248, 0.99), rgba(240, 246, 236, 0.99));
-  border-color: rgba(61, 107, 79, 0.4);
-  color: #1e2b24;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.99), rgba(249, 250, 251, 0.99));
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #111827;
 }
 
 html[data-theme='light'] .reshuffle-confirm-title {
-  color: #0f2418;
+  color: #0f172a;
 }
 
 html[data-theme='light'] .reshuffle-confirm-body {
-  color: #3d5244;
+  color: #4b5563;
 }
 
 html[data-theme='light'] input {
-  background: #fffdf8;
-  border-color: rgba(61, 107, 79, 0.45);
-  color: #1e2b24;
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #111827;
 }
 
 html[data-theme='light'] input:focus {
-  border-color: #3d6b4f;
-  box-shadow: 0 0 0 2px rgba(61, 107, 79, 0.25);
+  border-color: rgba(15, 23, 42, 0.28);
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
 }
 
 html[data-theme='light'] button {
-  background: #eef4ea;
-  color: #1e2b24;
-  border-color: rgba(61, 107, 79, 0.4);
+  background: #f3f4f6;
+  color: #111827;
+  border-color: rgba(15, 23, 42, 0.14);
 }
 
 html[data-theme='light'] button:hover:not(:disabled) {
-  box-shadow: 0 8px 20px rgba(45, 74, 56, 0.12);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 html[data-theme='light'] button.primary {
@@ -1721,7 +1772,7 @@ html[data-theme='light'] button.primary {
 }
 
 html[data-theme='light'] .divider {
-  color: #6b806f;
+  color: #9ca3af;
 }
 
 html[data-theme='light'] .error {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { GameTutorialModal } from '../components/GameTutorialModal'
 import { SoloLeaderboardPanel } from '../components/SoloLeaderboardPanel'
+import { HomeGlyphsBackdrop } from '../components/HomeGlyphsBackdrop'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { getStoredNickname, setStoredNickname } from '../solo/soloLeaderboard'
 import { LobbyView } from './LobbyView'
@@ -107,12 +108,13 @@ export function HomeView() {
         <ThemeToggle />
       </div>
       <div className="app-shell app-shell--home">
+        <HomeGlyphsBackdrop />
         <div className="home-entry-stack">
           <div className="card">
             <div className="home-card-header">
-              <h1 className="title">Online Set</h1>
+              <h1 className="title">Let&apos;s Play Sets!</h1>
             </div>
-            <p className="subtitle">Play Set with friends in your browser — or practice solo in your own room.</p>
+            <p className="subtitle">Play with friends or try to set a solo record.</p>
 
             <div className="home-mode-toggle" role="tablist" aria-label="Start or join">
               <button
@@ -136,7 +138,7 @@ export function HomeView() {
             </div>
 
             <div className="field-group">
-              <label htmlFor="home-nickname">Your name</label>
+              <label htmlFor="home-nickname">Your handle</label>
               <input
                 id="home-nickname"
                 value={nickname}

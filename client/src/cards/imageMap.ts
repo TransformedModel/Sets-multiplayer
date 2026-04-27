@@ -21,6 +21,21 @@ for (const [key, value] of Object.entries(pngImagesRaw)) {
   pngImages[key] = urlFromGlobEntry(value)
 }
 
+const glyphImagesRaw = import.meta.glob('../assets/glyphs/*.png', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, unknown>
+
+const glyphImages: Record<string, string> = {}
+for (const [key, value] of Object.entries(glyphImagesRaw)) {
+  glyphImages[key] = urlFromGlobEntry(value)
+}
+
+export function allGlyphImageUrls(): string[] {
+  return Object.values(glyphImages).filter(Boolean)
+}
+
 export function cardImageFor(card: Card): string {
   const base = `card-${card.shape}-${card.color}-${card.fill}-${card.count}`
   const pngPath = `../assets/cards/${base}.png`
