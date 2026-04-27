@@ -88,3 +88,18 @@ Set **environment variables** for the build in Pages only if you inject them int
 
 If the browser reports `WebSocket connection to 'wss://…' failed` but `GET /health` works, the Worker may be answering the WebSocket handshake with **`200` HTML** instead of **`101`**. The entry Worker must handle `Upgrade: websocket` **before** any “friendly `GET /` page” branch (a handshake is still `GET /`).
 2. Second browser (or incognito): join with code, host starts, play a full round including invalid set and host reshuffle.
+
+## 6. WebSocket resilience (manual QA)
+
+The client persists `{ roomCode, playerId }` in `sessionStorage`, sends `{ type: 'reconnect' }` after drops, retries with backoff, and JSON **`ping` / `pong`** every 25s (Worker and Node resolve `ping`). Server logs JSON lines `{ "event":"ws_close", ... }` on disconnect.
+
+Use these scenarios after deploy or with local `npm run dev`:
+
+| Scenario | What to verify |
+|---------|----------------|
+| Brief offline | Mid-game, toggle Wi‑Fi off ~2s then on; banner shows “Reconnecting…”; play resumes without refresh. |
+| Background tab | Leave the game tab in background 2–5 min (desktop); return and confirm connection recovers or banner clears. |
+| Refresh mid-game | Reload the page during an in‑progress game (same browser tab); you should land back in lobby or game with state restored from the DO / Node server. |
+| Gone room | After everyone leaves / room expired on dev server, stale session should show an error and clear resume (no infinite spinner). |
+
+**DevTools:** Network → WS → inspect close **code** (e.g. `1006` abnormal). Browser console warns `[ws close]` with code and `visibility` state in development builds.

@@ -227,6 +227,22 @@ export class RoomManager {
     }
   }
 
+  reconnect(
+    roomCode: string,
+    playerId: string,
+  ): { ok: true } | { ok: false; error: string } {
+    const room = this.rooms.get(roomCode)
+    if (!room) {
+      return { ok: false, error: 'Room not found' }
+    }
+    const player = room.players.find((p) => String(p.playerId) === String(playerId))
+    if (!player) {
+      return { ok: false, error: 'Not a member of this room' }
+    }
+    player.connected = true
+    return { ok: true }
+  }
+
   getRoom(roomCode: string): Room | null {
     return this.rooms.get(roomCode) ?? null
   }

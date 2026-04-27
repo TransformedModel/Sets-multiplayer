@@ -11,6 +11,9 @@ type Props = {
   game: {
     room: RoomState | null
     playerId: string | null
+    connected?: boolean
+    reconnecting?: boolean
+    wsCloseSummary?: string | null
     claimSet: (cardIds: string[]) => void
     lastSetResult: string | null
     clearLastSetResult: () => void
@@ -56,6 +59,8 @@ function MiniSetThumbnails({ cards }: { cards: Card[] }) {
 
 export function GameView({ game, onPlayAgain }: Props) {
   const room = game.room
+  const wsConnected = game.connected !== false
+  const reconnecting = game.reconnecting === true
   const { theme, toggleTheme } = useTheme()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [celebration, setCelebration] = useState<CelebrationState | null>(null)
@@ -306,6 +311,18 @@ export function GameView({ game, onPlayAgain }: Props) {
   return (
     <div className="game-layout">
       <GameTutorialModal open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+      {(!wsConnected || reconnecting) && (
+        <div
+          className={`game-connection-banner ${reconnecting ? 'game-connection-banner--reconnecting' : ''}`.trim()}
+          role="status"
+          aria-live="polite"
+        >
+          Reconnecting to the game server…
+          {import.meta.env.DEV && game.wsCloseSummary ? (
+            <span className="game-connection-banner__debug"> ({game.wsCloseSummary})</span>
+          ) : null}
+        </div>
+      )}
       <div className="game-top-right-controls">
         <button
           type="button"
@@ -419,7 +436,7 @@ export function GameView({ game, onPlayAgain }: Props) {
             const { card, imageClass } = pres
             const selected = selectedIds.includes(card.id)
             const boardBusy = claimReplace !== null
-            const playable = room.status === 'in-progress' && !boardBusy
+            const playable = room.status === 'in-progress' && !boardBusy && wsConnected
             const imgKey = claimReplace
               ? `${claimReplace.phase}-${slotIndex}-${card.id}`
               : `${slotIndex}-${card.id}`

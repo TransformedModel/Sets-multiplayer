@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { GameTutorialModal } from '../components/GameTutorialModal'
 import { SoloLeaderboardPanel } from '../components/SoloLeaderboardPanel'
-import { HomeGlyphsBackdrop } from '../components/HomeGlyphsBackdrop'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { getStoredNickname, setStoredNickname } from '../solo/soloLeaderboard'
 import { LobbyView } from './LobbyView'
@@ -43,6 +42,17 @@ export function HomeView() {
       setView('game')
     }
   }, [view, game.room?.status])
+
+  /** After refresh, resume-session WebSocket restores room → jump back into lobby or game. */
+  useEffect(() => {
+    const r = game.room
+    if (!r) return
+    if (r.status === 'waiting') {
+      setView('lobby')
+    } else {
+      setView('game')
+    }
+  }, [game.room?.roomCode, game.room?.status])
 
   const handleCreate = () => {
     game.createRoom(resolvedNickname)
@@ -108,7 +118,6 @@ export function HomeView() {
         <ThemeToggle />
       </div>
       <div className="app-shell app-shell--home">
-        <HomeGlyphsBackdrop />
         <div className="home-entry-stack">
           <div className="card">
             <div className="home-card-header">

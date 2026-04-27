@@ -20,6 +20,46 @@ function getWebSocketUrl(): string {
   return `${wsProtocol}//${window.location.host}`
 }
 
+export const SESSION_STORAGE_KEY = 'set-game-ws-session'
+
+export type PersistedSession = {
+  roomCode: string
+  playerId: string
+}
+
+export function readPersistedSession(): PersistedSession | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY)
+    if (!raw) return null
+    const o = JSON.parse(raw) as Record<string, unknown>
+    const roomCode = typeof o.roomCode === 'string' ? o.roomCode : ''
+    const playerId = typeof o.playerId === 'string' ? o.playerId : ''
+    if (!roomCode || !playerId) return null
+    return { roomCode, playerId }
+  } catch {
+    return null
+  }
+}
+
+function writePersistedSession(roomCode: string, playerId: string) {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ roomCode, playerId }))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function clearPersistedSession() {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY)
+  } catch {
+    /* */
+  }
+}
+
 export type Player = {
   playerId: string
   nickname: string
@@ -62,6 +102,14 @@ type GameMessage =
   | { type: 'reshuffleResult'; ok: boolean; message?: string }
   | { type: 'soloRunRecorded'; ok: boolean }
   | { type: 'error'; message: string }
+  | { type: 'pong' }
+
+type PendingOpen =
+  | { kind: 'createRoom'; nickname: string }
+  | { kind: 'joinRoom'; roomCode: string; nickname: string }
+  | { kind: 'reconnect' }
+
+const PING_INTERVAL_MS = 25_000
 
 function normalizeRoom(r: RoomState): RoomState {
   return {
@@ -73,32 +121,138 @@ function normalizeRoom(r: RoomState): RoomState {
   }
 }
 
+function isFatalReconnectError(message: string): boolean {
+  const m = message.toLowerCase()
+  return (
+    m.includes('room not found') ||
+    m.includes('not a member') ||
+    m.includes('unable to reconnect') ||
+    m.includes('invalid reconnect')
+  )
+}
+
 export function useWebSocketGame() {
   const wsRef = useRef<WebSocket | null>(null)
+  const intentionalCloseRef = useRef(false)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const reconnectAttemptRef = useRef(0)
+  const pendingOpenRef = useRef<PendingOpen | null>(null)
+  const reconnectingRef = useRef(false)
+  const attachHandlersImplRef = useRef<(ws: WebSocket) => void>(() => {})
+
   const [connected, setConnected] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
   const [room, setRoom] = useState<RoomState | null>(null)
   const [playerId, setPlayerId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastSetResult, setLastSetResult] = useState<string | null>(null)
   const [lastReshuffleError, setLastReshuffleError] = useState<string | null>(null)
+  const [wsCloseSummary, setWsCloseSummary] = useState<string | null>(null)
 
-  const attachHandlers = (ws: WebSocket) => {
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+  }, [])
+
+  const stopPing = useCallback(() => {
+    if (pingIntervalRef.current !== null) {
+      clearInterval(pingIntervalRef.current)
+      pingIntervalRef.current = null
+    }
+  }, [])
+
+  const startPing = useCallback(
+    (ws: WebSocket) => {
+      stopPing()
+      pingIntervalRef.current = window.setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify({ type: 'ping' }))
+          } catch {
+            /* */
+          }
+        }
+      }, PING_INTERVAL_MS)
+    },
+    [stopPing],
+  )
+
+  const scheduleReconnect = useCallback(() => {
+    if (intentionalCloseRef.current) return
+    const sess = readPersistedSession()
+    if (!sess?.roomCode || !sess?.playerId) return
+
+    clearReconnectTimer()
+    reconnectingRef.current = true
+    setReconnecting(true)
+
+    const attempt = reconnectAttemptRef.current
+    const delay = attempt === 0 ? 0 : Math.min(30_000, 1000 * Math.pow(2, attempt - 1))
+    reconnectAttemptRef.current = attempt + 1
+
+    reconnectTimerRef.current = window.setTimeout(() => {
+      reconnectTimerRef.current = null
+      pendingOpenRef.current = { kind: 'reconnect' }
+      const ws = new WebSocket(getWebSocketUrl())
+      wsRef.current = ws
+      attachHandlersImplRef.current(ws)
+    }, delay)
+  }, [clearReconnectTimer])
+
+  const attachHandlers = useCallback(
+    (ws: WebSocket) => {
     ws.onopen = () => {
       setConnected(true)
+      reconnectingRef.current = false
+      setReconnecting(false)
+      reconnectAttemptRef.current = 0
+      startPing(ws)
+
+      const pending = pendingOpenRef.current
+      pendingOpenRef.current = null
+
+      if (pending?.kind === 'createRoom') {
+        ws.send(JSON.stringify({ type: 'createRoom', nickname: pending.nickname }))
+      } else if (pending?.kind === 'joinRoom') {
+        ws.send(
+          JSON.stringify({
+            type: 'joinRoom',
+            roomCode: pending.roomCode,
+            nickname: pending.nickname,
+          }),
+        )
+      } else if (pending?.kind === 'reconnect') {
+        const sess = readPersistedSession()
+        if (sess) {
+          ws.send(
+            JSON.stringify({
+              type: 'reconnect',
+              roomCode: sess.roomCode,
+              playerId: sess.playerId,
+            }),
+          )
+        }
+      }
     }
-    ws.onclose = () => {
-      setConnected(false)
-    }
-    ws.onerror = () => {
-      setError('Connection error')
-    }
+
     ws.onmessage = (event) => {
-      const msg: GameMessage = JSON.parse(event.data)
+      const msg = JSON.parse(event.data) as GameMessage
+      if (msg.type === 'pong') {
+        return
+      }
       if (msg.type === 'roomCreated' || msg.type === 'joinedRoom') {
         setPlayerId(msg.playerId)
         setRoom(normalizeRoom(msg.room))
+        writePersistedSession(msg.roomCode, msg.playerId)
         setError(null)
       } else if (msg.type === 'gameState') {
+        const sess = readPersistedSession()
+        if (sess?.playerId && msg.room.roomCode === sess.roomCode) {
+          setPlayerId(sess.playerId)
+        }
         setRoom(normalizeRoom(msg.room))
         setError(null)
         setLastReshuffleError(null)
@@ -113,24 +267,69 @@ export function useWebSocketGame() {
           setLastReshuffleError(msg.message || 'Unable to reshuffle')
         }
       } else if (msg.type === 'error') {
-        setError(msg.message)
+        const m = msg.message || 'Error'
+        if (isFatalReconnectError(m)) {
+          clearReconnectTimer()
+          clearPersistedSession()
+          reconnectingRef.current = false
+          setReconnecting(false)
+        }
+        setError(m)
       }
     }
-  }
+
+    ws.onerror = () => {
+      if (!intentionalCloseRef.current) {
+        setError('Connection error')
+      }
+    }
+
+    ws.onclose = (ev: CloseEvent) => {
+      stopPing()
+      setConnected(false)
+      const summary = `code=${ev.code} clean=${ev.wasClean} reason=${ev.reason || ''} visibility=${typeof document !== 'undefined' ? document.visibilityState : 'n/a'}`
+      setWsCloseSummary(summary)
+      if (import.meta.env.DEV) {
+        console.warn('[ws close]', summary)
+      }
+
+      if (intentionalCloseRef.current) {
+        return
+      }
+
+      if (readPersistedSession()) {
+        scheduleReconnect()
+      } else {
+        reconnectingRef.current = false
+        setReconnecting(false)
+      }
+    }
+    },
+    [clearReconnectTimer, scheduleReconnect, startPing, stopPing],
+  )
+
+  attachHandlersImplRef.current = attachHandlers
 
   const connect = useCallback(() => {
-    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+    if (
+      wsRef.current &&
+      (wsRef.current.readyState === WebSocket.OPEN ||
+        wsRef.current.readyState === WebSocket.CONNECTING)
+    ) {
       return
     }
+    pendingOpenRef.current = null
     const ws = new WebSocket(getWebSocketUrl())
     wsRef.current = ws
     attachHandlers(ws)
-  }, [])
+  }, [attachHandlers])
 
   const send = useCallback((payload: unknown) => {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      setError('Not connected to the server — is it running? Try refreshing the page.')
+      if (!reconnectingRef.current) {
+        setError('Not connected to the server — reconnecting or refresh the page.')
+      }
       return false
     }
     ws.send(JSON.stringify(payload))
@@ -141,16 +340,10 @@ export function useWebSocketGame() {
     (nickname: string) => {
       const ws = wsRef.current
       if (!ws || ws.readyState === WebSocket.CLOSED) {
+        pendingOpenRef.current = { kind: 'createRoom', nickname }
         const newWs = new WebSocket(getWebSocketUrl())
         wsRef.current = newWs
         attachHandlers(newWs)
-        newWs.addEventListener(
-          'open',
-          () => {
-            newWs.send(JSON.stringify({ type: 'createRoom', nickname }))
-          },
-          { once: true },
-        )
         return
       }
       if (ws.readyState === WebSocket.OPEN) {
@@ -165,23 +358,17 @@ export function useWebSocketGame() {
         )
       }
     },
-    [],
+    [attachHandlers],
   )
 
   const joinRoom = useCallback(
     (roomCode: string, nickname: string) => {
       const ws = wsRef.current
       if (!ws || ws.readyState === WebSocket.CLOSED) {
+        pendingOpenRef.current = { kind: 'joinRoom', roomCode, nickname }
         const newWs = new WebSocket(getWebSocketUrl())
         wsRef.current = newWs
         attachHandlers(newWs)
-        newWs.addEventListener(
-          'open',
-          () => {
-            newWs.send(JSON.stringify({ type: 'joinRoom', roomCode, nickname }))
-          },
-          { once: true },
-        )
         return
       }
       if (ws.readyState === WebSocket.OPEN) {
@@ -196,7 +383,7 @@ export function useWebSocketGame() {
         )
       }
     },
-    [],
+    [attachHandlers],
   )
 
   const startGame = useCallback(() => {
@@ -220,31 +407,55 @@ export function useWebSocketGame() {
   }, [send])
 
   const clearError = useCallback(() => setError(null), [])
+
   const reset = useCallback(() => {
+    intentionalCloseRef.current = true
+    clearReconnectTimer()
+    stopPing()
+    clearPersistedSession()
     const ws = wsRef.current
     wsRef.current = null
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       ws.close()
     }
     setConnected(false)
+    reconnectingRef.current = false
+    setReconnecting(false)
+    reconnectAttemptRef.current = 0
     setRoom(null)
     setPlayerId(null)
     setError(null)
     setLastSetResult(null)
     setLastReshuffleError(null)
+    setWsCloseSummary(null)
+    intentionalCloseRef.current = false
+  }, [clearReconnectTimer, stopPing])
+
+  /** Resume a stored session after full page load (same tab). */
+  useEffect(() => {
+    const sess = readPersistedSession()
+    if (!sess) return
+    intentionalCloseRef.current = false
+    pendingOpenRef.current = { kind: 'reconnect' }
+    const ws = new WebSocket(getWebSocketUrl())
+    wsRef.current = ws
+    attachHandlersImplRef.current(ws)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only resume
   }, [])
 
+  /** Do not force-close WebSocket here; `HomeView` stays mounted across lobby/game and Strict Mode double-mount would fight reconnect logic. Browser tab unload closes the socket anyway. */
   useEffect(() => {
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close()
-      }
+      clearReconnectTimer()
+      stopPing()
     }
-  }, [])
+  }, [clearReconnectTimer, stopPing])
 
   return {
     connect,
     connected,
+    reconnecting,
+    wsCloseSummary,
     room,
     playerId,
     error,
@@ -262,4 +473,3 @@ export function useWebSocketGame() {
     recordSoloRun,
   }
 }
-

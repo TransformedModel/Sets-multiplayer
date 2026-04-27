@@ -190,6 +190,25 @@ class RoomManager {
     this.connections.set(playerId, ws);
   }
 
+  /**
+   * Re-attach a WebSocket to an existing player after a disconnect (same roomCode + playerId).
+   */
+  reconnect(roomCode, playerId, ws) {
+    const room = this.rooms.get(roomCode);
+    if (!room) {
+      return { ok: false, error: "Room not found" };
+    }
+    const player = room.players.find(
+      (p) => String(p.playerId) === String(playerId),
+    );
+    if (!player) {
+      return { ok: false, error: "Not a member of this room" };
+    }
+    player.connected = true;
+    this.attachConnection(playerId, ws);
+    return { ok: true };
+  }
+
   getPublicRoomState(roomCode) {
     const room = this.rooms.get(roomCode);
     if (!room) return null;

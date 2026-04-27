@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { RoomState } from '../ws/useWebSocketGame'
+import { SESSION_STORAGE_KEY, type RoomState } from '../ws/useWebSocketGame'
 
 type Props = {
   game: {
@@ -7,6 +7,7 @@ type Props = {
     playerId: string | null
     startGame: () => void
     connected: boolean
+    reconnecting?: boolean
     error: string | null
     clearError: () => void
   }
@@ -25,21 +26,29 @@ export function LobbyView({ game, onStartGame }: Props) {
           {game.error ? (
             <>
               <p className="subtitle">{game.error}</p>
-              <p className="hint">
-                If you just deployed, confirm the game Worker is reachable at your API domain (try{' '}
-                <code>/health</code> over HTTPS) and that Pages was built with <code>VITE_WS_URL</code> set to that
-                host ( <code>wss://…</code> ). The API hostname must be attached to the <strong>Worker</strong>, not
-                only to Pages.
-              </p>
+              {import.meta.env.DEV ? (
+                <p className="hint">
+                  If you just deployed, confirm the game Worker is reachable at your API domain (try <code>/health</code>{' '}
+                  over HTTPS) and that Pages was built with <code>VITE_WS_URL</code> set to that host ( <code>wss://…</code>{' '}
+                  ). The API hostname must be attached to the <strong>Worker</strong>, not only to Pages.
+                </p>
+              ) : (
+                <p className="hint">Try refreshing. If this keeps happening, the game server is probably unreachable.</p>
+              )}
               <button type="button" className="primary" onClick={() => game.clearError()}>
                 Dismiss
               </button>
             </>
           ) : (
             <p className="subtitle">
-              {game.connected ? 'Syncing with server…' : 'Connecting to server…'}
+              {game.reconnecting
+                ? 'Reconnecting to server…'
+                : game.connected
+                  ? 'Syncing with server…'
+                  : 'Connecting to server…'}
             </p>
           )}
+          <StuckLobbyHelp connected={game.connected} />
         </div>
       </div>
     )
@@ -102,6 +111,11 @@ export function LobbyView({ game, onStartGame }: Props) {
             {copyStatus ?? 'Copy link'}
           </button>
         </div>
+        {!game.connected && (
+          <p className="hint" role="status">
+            {game.reconnecting ? 'Reconnecting…' : 'Disconnected — retrying connection.'}
+          </p>
+        )}
         <div className="player-list">
           {room.players.map((p) => (
             <div key={p.playerId} className="player-row">
@@ -115,13 +129,48 @@ export function LobbyView({ game, onStartGame }: Props) {
           leaderboard.
         </p>
         {isHost ? (
-          <button onClick={handleStart} className="primary">
+          <button type="button" onClick={handleStart} className="primary" disabled={!game.connected}>
             Start Game
           </button>
         ) : (
           <p className="hint">Waiting for host to start the game…</p>
         )}
       </div>
+    </div>
+  )
+}
+
+function StuckLobbyHelp({ connected }: { connected: boolean }) {
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    if (!connected) {
+      setShow(false)
+      return
+    }
+    const t = window.setTimeout(() => setShow(true), 8000)
+    return () => window.clearTimeout(t)
+  }, [connected])
+
+  if (!show) return null
+
+  return (
+    <div className="hint" role="status">
+      Still syncing?{' '}
+      <button
+        type="button"
+        onClick={() => {
+          try {
+            sessionStorage.removeItem(SESSION_STORAGE_KEY)
+          } catch {
+            /* */
+          }
+          window.location.reload()
+        }}
+        style={{ textDecoration: 'underline' }}
+      >
+        Reset connection
+      </button>
     </div>
   )
 }

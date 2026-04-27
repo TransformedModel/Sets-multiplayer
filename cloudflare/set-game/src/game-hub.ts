@@ -156,6 +156,7 @@ export class GameHub extends DurableObject {
       type?: string
       nickname?: string
       roomCode?: string
+      playerId?: string
       cardIds?: string[]
     }
     try {
@@ -165,6 +166,33 @@ export class GameHub extends DurableObject {
     }
     const type = msg.type
     if (!type) return
+
+    if (type === 'ping') {
+      send(ws, 'pong', {})
+      return
+    }
+
+    if (type === 'reconnect') {
+      const code = (msg.roomCode as string) || ''
+      const pid = (msg.playerId as string) || ''
+      if (!code || !pid) {
+        send(ws, 'error', { message: 'Invalid reconnect payload' })
+        return
+      }
+      const result = this.rm.reconnect(code, pid)
+      if (!result.ok) {
+        send(ws, 'error', { message: result.error || 'Unable to reconnect' })
+        return
+      }
+      ws.serializeAttachment({ playerId: pid, roomCode: code } satisfies Attachment)
+      this.connections.set(pid, ws)
+      await this.persist()
+      send(ws, 'gameState', {
+        room: this.rm.getPublicRoomState(code),
+      })
+      this.broadcastRoom(code)
+      return
+    }
 
     let att: Attachment | null = null
     try {
@@ -280,13 +308,23 @@ export class GameHub extends DurableObject {
     }
   }
 
-  async webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {
+  async webSocketClose(ws: WebSocket, code: number, reason: string, _wasClean: boolean): Promise<void> {
     let att: Attachment | null = null
     try {
       att = ws.deserializeAttachment() as Attachment | null
     } catch {
       att = null
     }
+    const reasonStr = typeof reason === 'string' ? reason : new TextDecoder().decode(reason as ArrayBuffer)
+    console.log(
+      JSON.stringify({
+        event: 'ws_close',
+        playerId: att?.playerId ?? null,
+        roomCode: att?.roomCode ?? null,
+        code,
+        reason: reasonStr,
+      }),
+    )
     if (att?.playerId) {
       this.connections.delete(att.playerId)
       this.rm.disconnectPlayer(att.playerId)

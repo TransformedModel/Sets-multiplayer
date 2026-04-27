@@ -58,6 +58,22 @@ body {
   min-height: 100dvh;
 }
 
+/** Full-viewport falling glyphs; sits behind `app-main` on every screen */
+.app-glyphs-fixed-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.app-main {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 .app-shell {
   min-height: 100vh;
   min-height: 100dvh;
@@ -71,8 +87,6 @@ body {
 
 .app-shell--home {
   align-items: center;
-  position: relative;
-  overflow: hidden;
 }
 
 .home-glyphs-backdrop {
@@ -424,6 +438,28 @@ button:disabled {
   box-sizing: border-box;
   align-content: start;
   font-family: 'Google Sans', Roboto, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.game-connection-banner {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 12px;
+  background: rgba(251, 191, 36, 0.16);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fef3c7;
+}
+
+.game-connection-banner--reconnecting {
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.game-connection-banner__debug {
+  font-weight: 400;
+  font-size: 11px;
+  opacity: 0.85;
 }
 
 .game-top-row {
@@ -1789,6 +1825,12 @@ html[data-theme='light'] .player-row {
 html[data-theme='light'] .badge {
   background: rgba(61, 107, 79, 0.18);
   color: #2d4a38;
+}
+
+html[data-theme='light'] .game-connection-banner {
+  background: rgba(251, 191, 36, 0.2);
+  border-color: rgba(217, 119, 6, 0.35);
+  color: #78350f;
 }
 
 html[data-theme='light'] .game-top-bar {

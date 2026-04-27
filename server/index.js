@@ -97,6 +97,32 @@ wss.on("connection", (ws) => {
 
     const { type } = msg;
 
+    if (type === "ping") {
+      send(ws, "pong", {});
+      return;
+    }
+
+    if (type === "reconnect") {
+      const code = msg.roomCode;
+      const pid = msg.playerId;
+      if (!code || pid === undefined || pid === null) {
+        send(ws, "error", { message: "Invalid reconnect payload" });
+        return;
+      }
+      const result = roomManager.reconnect(String(code), String(pid), ws);
+      if (!result.ok) {
+        send(ws, "error", { message: result.error || "Unable to reconnect" });
+        return;
+      }
+      playerId = String(pid);
+      roomCode = String(code);
+      send(ws, "gameState", {
+        room: roomManager.getPublicRoomState(roomCode),
+      });
+      roomManager.broadcastRoom(roomCode);
+      return;
+    }
+
     if (type === "createRoom") {
       const { nickname } = msg;
       const result = roomManager.createRoom(nickname || "Player");
@@ -177,7 +203,16 @@ wss.on("connection", (ws) => {
     }
   });
 
-  ws.on("close", () => {
+  ws.on("close", (code, reason) => {
+    console.log(
+      JSON.stringify({
+        event: "ws_close",
+        playerId,
+        roomCode,
+        code,
+        reason: typeof reason !== "undefined" ? reason.toString() : "",
+      }),
+    );
     if (playerId) {
       roomManager.disconnectPlayer(playerId);
       if (roomCode) {
