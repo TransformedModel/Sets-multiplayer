@@ -70,6 +70,7 @@ body {
 .app-main {
   position: relative;
   z-index: 1;
+  width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
 }
@@ -77,6 +78,7 @@ body {
 .app-shell {
   min-height: 100vh;
   min-height: 100dvh;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
